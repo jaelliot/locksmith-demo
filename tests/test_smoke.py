@@ -56,8 +56,7 @@ class TestKeriLayer:
 
         with habbing.openHby(name="smoke2", salt="0ACDEyMzQ1Njc4OWxtbm9dEf", temp=True) as hby:
             hab = hby.makeHab(name="transferable-aid", transferable=True)
-            state = hab.state()
-            nxt = state.get("n", [])
+            nxt = hab.kever.ndigers
             assert nxt, "Transferable AID must commit to at least one next-key digest"
 
 
