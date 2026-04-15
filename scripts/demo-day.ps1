@@ -139,6 +139,15 @@ if ($venvVer -ne "3.13") {
 }
 
 Write-Host "[demo-day] installing dependencies (editable + dev extras)"
+& $venvPython -m pip --version *> $null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[demo-day] pip missing in .venv; bootstrapping with ensurepip"
+    & $venvPython -m ensurepip --upgrade
+    if ($LASTEXITCODE -ne 0) {
+        throw "ensurepip failed; unable to bootstrap pip in .venv"
+    }
+}
+
 & $venvPython -m pip install --upgrade pip --quiet
 if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed" }
 & $venvPython -m pip install -e ".[dev]" --quiet

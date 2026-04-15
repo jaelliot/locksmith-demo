@@ -174,6 +174,14 @@ PYTHON_BIN=python3.13 ./scripts/demo-day.sh
 
 The launcher installs dependencies into `.venv` and invokes the tool from that venv. Re-run setup-only mode.
 
+### `No module named pip`
+
+The launchers now auto-bootstrap `pip` inside `.venv` via `ensurepip` before dependency installation. Re-run setup-only mode:
+
+```powershell
+.\scripts\demo-day.ps1 -SetupOnly
+```
+
 ### Docker cannot open GUI
 
 Expected behavior. Docker lane is headless preflight only. Use native host launcher for GUI.

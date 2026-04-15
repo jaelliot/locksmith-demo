@@ -102,6 +102,10 @@ fi
 
 # ── Install ───────────────────────────────────────────────────────────────────
 echo "[demo-day] installing dependencies (editable + dev extras)"
+.venv/bin/python -m pip --version >/dev/null 2>&1 || {
+  echo "[demo-day] pip missing in .venv; bootstrapping with ensurepip"
+  .venv/bin/python -m ensurepip --upgrade
+}
 .venv/bin/python -m pip install --upgrade pip --quiet
 .venv/bin/python -m pip install -e ".[dev]" --quiet
 
