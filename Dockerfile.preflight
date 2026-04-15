@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcb1 \
     libx11-6 \
     libglib2.0-0 \
+    libsodium23 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for preflight execution
@@ -23,11 +24,13 @@ WORKDIR /workspace
 COPY . /workspace
 RUN chown -R appuser:appuser /workspace
 
-# Install dependencies as root, then switch to non-root user
-RUN python -m pip install --upgrade pip && \
-    python -m pip install -e ".[dev]"
-
 USER appuser
+ENV PATH="/workspace/.venv/bin:${PATH}"
+
+# Install dependencies in a non-root virtualenv to avoid root pip warnings.
+RUN python -m venv /workspace/.venv && \
+    python -m pip install --upgrade pip && \
+    python -m pip install -e ".[dev]"
 
 # Preflight only: run smoke tests and exit.
 CMD ["sh", "-lc", "python ./scripts/generate_qrc.py && pyside6-rcc resources.qrc -o resources_rc.py && mv resources_rc.py ./src/locksmith/resources_rc.py && pytest tests/ -v --tb=short"]

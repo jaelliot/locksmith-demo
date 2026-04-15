@@ -155,3 +155,7 @@ class WatcherProviderPlugin(ABC):
 class CredentialProviderPlugin(ABC):
     """Contract for plugins that manage published credentials."""
     pass
+
+
+# Backward-compatible import surface used by smoke tests and older plugin docs.
+LocksmithPlugin = PluginBase
