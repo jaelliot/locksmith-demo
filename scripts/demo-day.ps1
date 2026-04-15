@@ -66,7 +66,26 @@ function Test-WindowsLibsodiumLoad {
             continue
         }
 
-        & $PythonExe -c "import ctypes, sys; ctypes.WinDLL(sys.argv[1])" "$candidate" > $null 2>&1
+        $oldNativeErrPref = $null
+        $hadNativeErrPref = $false
+        if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue) {
+            $hadNativeErrPref = $true
+            $oldNativeErrPref = $Global:PSNativeCommandUseErrorActionPreference
+        }
+
+        try {
+            $Global:PSNativeCommandUseErrorActionPreference = $false
+            & $PythonExe -c "import ctypes, sys; ctypes.WinDLL(sys.argv[1])" "$candidate" > $null 2>&1
+        }
+        finally {
+            if ($hadNativeErrPref) {
+                $Global:PSNativeCommandUseErrorActionPreference = $oldNativeErrPref
+            }
+            else {
+                Remove-Variable -Name PSNativeCommandUseErrorActionPreference -Scope Global -ErrorAction SilentlyContinue
+            }
+        }
+
         if ($LASTEXITCODE -eq 0) {
             $targetDll = Join-Path $LibsDir "libsodium.dll"
             if ($candidate -ne $targetDll) {
