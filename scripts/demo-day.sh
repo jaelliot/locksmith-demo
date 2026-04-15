@@ -8,16 +8,42 @@
 # Environment overrides:
 #   PYTHON_BIN=python3.13    — force a specific interpreter
 #   SETUP_ONLY=1             — stop after install + smoke tests, skip launch
+#   AUTO_INSTALL_UV=1        — install uv if missing (default: 1)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-}"
 SETUP_ONLY="${SETUP_ONLY:-0}"
+AUTO_INSTALL_UV="${AUTO_INSTALL_UV:-1}"
+
+install_uv_if_needed() {
+  if command -v uv >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [[ "${AUTO_INSTALL_UV}" != "1" ]]; then
+    return 1
+  fi
+
+  echo "[demo-day] uv not found; attempting automatic install"
+  if command -v curl >/dev/null 2>&1; then
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+  else
+    echo "[demo-day] ERROR: curl is required to auto-install uv"
+    return 1
+  fi
+
+  if [[ -x "${HOME}/.local/bin/uv" ]]; then
+    export PATH="${HOME}/.local/bin:${PATH}"
+  fi
+
+  command -v uv >/dev/null 2>&1
+}
 
 # ── Interpreter selection ─────────────────────────────────────────────────────
 # PySide6 6.9.x is incompatible with Python 3.14; prefer 3.13 then 3.12.
 if [[ -z "${PYTHON_BIN}" ]]; then
-  for candidate in python3.13 python3.12 python3; do
+  for candidate in python3.13 python3.12; do
     if command -v "${candidate}" >/dev/null 2>&1; then
       PYTHON_BIN="${candidate}"
       break
@@ -25,15 +51,30 @@ if [[ -z "${PYTHON_BIN}" ]]; then
   done
 fi
 
-if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
-  echo "[demo-day] ERROR: no usable Python found. Install Python 3.13 or set PYTHON_BIN."
+# If no compatible Python is found on PATH, use uv to provision 3.13.
+if [[ -z "${PYTHON_BIN}" ]]; then
+  if install_uv_if_needed; then
+    echo "[demo-day] provisioning Python 3.13 via uv"
+    uv python install 3.13 >/dev/null
+    PYTHON_BIN="uv run --python 3.13 python"
+  fi
+fi
+
+if [[ -z "${PYTHON_BIN}" ]]; then
+  echo "[demo-day] ERROR: no usable Python found."
+  echo "[demo-day] Install Python 3.13 manually, or run with AUTO_INSTALL_UV=1."
   exit 1
 fi
 
-PY_VER="$("${PYTHON_BIN}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+if [[ "${PYTHON_BIN}" != uv\ run* ]] && ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
+  echo "[demo-day] ERROR: PYTHON_BIN is set to '${PYTHON_BIN}' but is not executable on PATH."
+  exit 1
+fi
+
+PY_VER="$(eval "${PYTHON_BIN}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 if [[ "${PY_VER}" == "3.14" ]]; then
   echo "[demo-day] ERROR: ${PYTHON_BIN} is Python 3.14, which is incompatible with PySide6 6.9.x."
-  echo "[demo-day]        Install Python 3.13 (brew install python@3.13) and re-run, or set:"
+  echo "[demo-day]        Install/use Python 3.13 and re-run, or set:"
   echo "[demo-day]        PYTHON_BIN=python3.13 ./scripts/demo-day.sh"
   exit 1
 fi
@@ -44,14 +85,14 @@ cd "${REPO_ROOT}"
 # ── Virtual environment ───────────────────────────────────────────────────────
 if [[ ! -d ".venv" ]]; then
   echo "[demo-day] creating virtual environment"
-  "${PYTHON_BIN}" -m venv .venv
+  eval "${PYTHON_BIN}" -m venv .venv
 fi
 
 VENV_VER="$(.venv/bin/python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 if [[ "${VENV_VER}" == "3.14" ]]; then
   echo "[demo-day] existing .venv is Python 3.14; recreating with ${PYTHON_BIN}"
   rm -rf .venv
-  "${PYTHON_BIN}" -m venv .venv
+  eval "${PYTHON_BIN}" -m venv .venv
 fi
 
 # ── Install ───────────────────────────────────────────────────────────────────

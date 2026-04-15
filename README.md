@@ -1,27 +1,20 @@
 # LockSmith Demo
 
-A self-contained demo snapshot of [LockSmith](https://github.com/keri-foundation/locksmith) — the KERI
-Foundation's desktop identity wallet, built on [keripy](https://github.com/WebOfTrust/keripy) and PySide6.
+Self-contained demo snapshot of LockSmith, the KERI Foundation desktop wallet.
 
-This repo embeds the full LockSmith source. No sibling clone required.
+This repository embeds the full LockSmith source so attendees can clone one repo and run.
 
----
+## Support Model
 
-## Prerequisites
+- Primary lane: Docker headless preflight (most consistent across attendee devices)
+- GUI lane: native host launch (macOS/Linux/Windows)
+- Windows posture: native PowerShell is the reference path; WSL2 is supported with caveats
 
-| Requirement | Version | Install |
-|---|---|---|
-| Python | **3.13** (3.14 does not work with PySide6 6.9.x) | `brew install python@3.13` |
-| Git | any recent | `brew install git` |
-| macOS | 12 Monterey or newer | — |
+## Runtime Constraints
 
-Verify:
-
-```bash
-python3.13 --version   # must print 3.13.x
-```
-
----
+- Python 3.13 is required for reliable PySide6 6.9.x behavior.
+- Python 3.14 is not supported by this demo bootstrap.
+- Setup assumes internet access (package and runtime downloads).
 
 ## Quick Start
 
@@ -32,145 +25,144 @@ git clone https://github.com/jaelliot/locksmith-demo.git
 cd locksmith-demo
 ```
 
-### 2. Preflight (install + run smoke tests, no GUI)
+### 2. Run preflight (recommended first)
+
+Choose one lane:
+
+- Docker headless preflight (primary)
+
+```bash
+docker build -f Dockerfile.preflight -t locksmith-demo-preflight .
+docker run --rm locksmith-demo-preflight
+```
+
+- Native POSIX preflight (macOS/Linux)
 
 ```bash
 SETUP_ONLY=1 ./scripts/demo-day.sh
 ```
 
-The script will:
-- auto-select Python 3.13
-- create `.venv/`
-- install the package and dev extras (`pip install -e .[dev]`)
-- regenerate Qt resources (`pyside6-rcc`)
-- run the smoke test suite (`pytest tests/ -v`)
+- Native Windows preflight (PowerShell)
 
-Expected output ends with something like:
-
+```powershell
+.\scripts\demo-day.ps1 -SetupOnly
 ```
-tests/test_smoke.py::TestImports::test_import_configing PASSED
-tests/test_smoke.py::TestImports::test_import_habbing PASSED
-tests/test_smoke.py::TestImports::test_import_vaulting PASSED
-tests/test_smoke.py::TestImports::test_import_plugins_base PASSED
-tests/test_smoke.py::TestKeriLayer::test_aid_inception PASSED
-tests/test_smoke.py::TestKeriLayer::test_transferable_aid_has_next_key_digest PASSED
-tests/test_smoke.py::TestConfig::test_config_loads PASSED
 
+Expected test summary:
+
+```text
 7 passed in ...
 ```
 
-### 3. Run the tests separately
+### 3. Launch GUI (native host)
 
-```bash
-.venv/bin/pytest tests/ -v
-```
-
-### 4. Launch the wallet
+- macOS/Linux
 
 ```bash
 ./scripts/demo-day.sh
 ```
 
----
+- Windows PowerShell
+
+```powershell
+.\scripts\demo-day.ps1
+```
+
+## Device Matrix
+
+| Environment | Preflight | GUI Launch | Notes |
+|---|---|---|---|
+| Docker Desktop (Windows/macOS/Linux) | Yes (primary) | No | Deterministic smoke tests only |
+| macOS native | Yes | Yes | Recommended presenter lane |
+| Linux native | Yes | Yes | Requires desktop/display stack |
+| Windows native (PowerShell) | Yes | Yes | Reference Windows lane |
+| WSL2 | Yes | Best-effort | Prefer native Windows for conference GUI reliability |
+
+## Script Behavior
+
+Both launchers perform the same flow:
+
+1. Locate Python 3.13/3.12
+2. If unavailable, install `uv` (unless disabled) and provision Python 3.13
+3. Create or refresh `.venv`
+4. Install editable package and dev dependencies
+5. Regenerate Qt resources
+6. Run smoke tests
+7. Launch GUI unless setup-only mode is requested
+
+### POSIX launcher
+
+- File: `scripts/demo-day.sh`
+- Setup-only: `SETUP_ONLY=1 ./scripts/demo-day.sh`
+- Disable auto uv install: `AUTO_INSTALL_UV=0 ./scripts/demo-day.sh`
+
+### PowerShell launcher
+
+- File: `scripts/demo-day.ps1`
+- Setup-only: `.\scripts\demo-day.ps1 -SetupOnly`
+- Disable auto uv install: `.\scripts\demo-day.ps1 -NoAutoInstallUv`
+- Force interpreter: `.\scripts\demo-day.ps1 -PythonBin python3.13`
+
+## Known Limitations
+
+- Credential issuance requires a live witness pool and active ACDC schema/registry infrastructure.
+- Smoke tests validate core KERI wiring and app bootstrap, not full credential issuance end-to-end.
+- WSL2 display and filesystem semantics may differ from native Windows behavior.
 
 ## Demo Walkthrough
 
-### AID creation
-
-1. Launch LockSmith — the welcome screen appears.
-2. Choose **Create new identifier**.
-3. Enter a display name (e.g. `demo-aid`).
-4. Accept the default witness configuration.
-5. LockSmith generates a self-certifying AID and anchors it with the configured witnesses.
-
-### Credential issuance
-
-> **Known limitation:** Credential issuance requires a live witness pool *and* a running ACDC schema
-> registry. The smoke tests verify the KERI layer headlessly but do not exercise credential issuance
-> end-to-end. For a full credential demo, a witness set and registry must be reachable on the network.
-
-### PySide6 architecture (for developer audiences)
-
-LockSmith is a native desktop application built with:
-
-- **PySide6** — Qt for Python binding, providing the widget layer
-- **keripy** — KERI protocol library handling key management, event logs, and witness interactions
-- **hio** — concurrent I/O framework for managing async KERI tasks within the Qt event loop
-
-The UI layer in `src/locksmith/ui/` is deliberately thin; all identity state lives in the keripy
-`Habery` / `Hab` objects and is persisted via LMDB.
-
----
-
-## Keeping in Sync with Upstream
-
-This repo embeds a point-in-time snapshot of locksmith source under `src/`. To pull in upstream
-changes later:
-
-```bash
-# from the parent of this repo, assuming locksmith sits at ../locksmith
-rsync -a \
-  --exclude '__pycache__' \
-  --exclude '*.pyc' \
-  --exclude '*.egg-info' \
-  ../locksmith/src/ ./src/
-
-# review the diff, run tests, then commit
-git diff
-.venv/bin/pytest tests/ -v
-git add src/
-git commit -m "chore: sync locksmith source from upstream <SHA>"
-```
-
----
-
-## Environment Variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `PYTHON_BIN` | auto-detected | Force a specific interpreter, e.g. `PYTHON_BIN=python3.13` |
-| `SETUP_ONLY` | `0` | Set to `1` to install + test without launching the GUI |
-
----
+1. Launch LockSmith.
+2. Create a new identifier.
+3. Incept the AID with default witnesses.
+4. Explain architecture:
+5. PySide6 provides UI.
+6. keripy handles KERI logic and key event workflows.
+7. hio handles asynchronous task orchestration.
 
 ## Troubleshooting
 
-**Python 3.14 error**
+### Python 3.14 errors
 
-```
-ERROR: could not build wheels for PySide6
-```
+Use Python 3.13 explicitly.
 
-`python3` on your machine resolves to 3.14. Force 3.13:
+- POSIX:
 
 ```bash
 PYTHON_BIN=python3.13 ./scripts/demo-day.sh
 ```
 
-**`pyside6-rcc` not found**
+- PowerShell:
 
-Make sure you activated (or let the script activate) the project's `.venv`. The script runs
-`pyside6-rcc` from `.venv/bin/` — it does not need to be on your system PATH.
-
-**Display / headless errors during tests**
-
-Tests set `QT_QPA_PLATFORM=offscreen` automatically via `tests/conftest.py`. If you run pytest
-manually, prepend the variable:
-
-```bash
-QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -v
+```powershell
+.\scripts\demo-day.ps1 -PythonBin python3.13
 ```
 
-**SSH vs HTTPS clone**
+### `pyside6-rcc` not found
 
-If your SSH key is not configured for GitHub, clone via HTTPS:
+The launcher installs dependencies into `.venv` and invokes the tool from that venv. Re-run setup-only mode.
+
+### Docker cannot open GUI
+
+Expected behavior. Docker lane is headless preflight only. Use native host launcher for GUI.
+
+### WSL2 GUI instability
+
+Use WSL2 for preflight checks and switch to native Windows PowerShell for conference GUI launch.
+
+## Keeping in Sync with Upstream
+
+This repo embeds a point-in-time source snapshot under `src/`.
 
 ```bash
-git clone https://github.com/jaelliot/locksmith-demo.git
+rsync -a \
+  --exclude '__pycache__' \
+  --exclude '*.pyc' \
+  --exclude '*.egg-info' \
+  ../locksmith/src/ ./src/
 ```
 
----
+Then rerun preflight and commit the sync.
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+Apache 2.0. See LICENSE.
