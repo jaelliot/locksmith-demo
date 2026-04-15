@@ -139,12 +139,28 @@ if ($venvVer -ne "3.13") {
 }
 
 Write-Host "[demo-day] installing dependencies (editable + dev extras)"
-& $venvPython -m pip --version *> $null
-if ($LASTEXITCODE -ne 0) {
+$pipExe = ".venv\Scripts\pip.exe"
+$pipReady = Test-Path $pipExe
+
+if ($pipReady) {
+    try {
+        & $venvPython -m pip --version > $null 2>&1
+        $pipReady = ($LASTEXITCODE -eq 0)
+    }
+    catch {
+        $pipReady = $false
+    }
+}
+
+if (-not $pipReady) {
     Write-Host "[demo-day] pip missing in .venv; bootstrapping with ensurepip"
     & $venvPython -m ensurepip --upgrade
     if ($LASTEXITCODE -ne 0) {
         throw "ensurepip failed; unable to bootstrap pip in .venv"
+    }
+
+    if (-not (Test-Path $pipExe)) {
+        throw "pip bootstrap completed but pip.exe is still missing in .venv"
     }
 }
 
