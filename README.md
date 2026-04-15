@@ -182,6 +182,17 @@ The launchers now auto-bootstrap `pip` inside `.venv` via `ensurepip` before dep
 .\scripts\demo-day.ps1 -SetupOnly
 ```
 
+### `LoadLibrary() argument 1 must be str, not None`
+
+On Windows, this means `pysodium` could not locate `libsodium.dll`. The PowerShell launcher now auto-prepares a `libsodium.dll` alias in the bundled `libsodium/` folder and prepends that folder to `PATH` before smoke tests.
+
+If you still see this error, re-run setup-only mode in a fresh shell:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\scripts\demo-day.ps1 -SetupOnly
+```
+
 ### Docker cannot open GUI
 
 Expected behavior. Docker lane is headless preflight only. Use native host launcher for GUI.

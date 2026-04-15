@@ -9,6 +9,30 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $autoInstallUv = -not $NoAutoInstallUv
 
+function Ensure-WindowsLibsodium {
+    $libsDir = Join-Path $repoRoot "libsodium"
+    if (-not (Test-Path $libsDir)) {
+        return
+    }
+
+    $arch = $env:PROCESSOR_ARCHITECTURE
+    $sourceDll = if ($arch -eq "AMD64") {
+        Join-Path $libsDir "libsodium-26.x64.dll"
+    }
+    else {
+        Join-Path $libsDir "libsodium-26.x32.dll"
+    }
+
+    $targetDll = Join-Path $libsDir "libsodium.dll"
+    if ((Test-Path $sourceDll) -and -not (Test-Path $targetDll)) {
+        Copy-Item -Path $sourceDll -Destination $targetDll -Force
+    }
+
+    if (Test-Path $targetDll) {
+        $env:Path = "$libsDir;$env:Path"
+    }
+}
+
 function Install-UvIfNeeded {
     if (Get-Command uv -ErrorAction SilentlyContinue) {
         return $true
@@ -117,6 +141,7 @@ if ($pyVer -ne "3.13") {
 
 Write-Host "[demo-day] using $PythonBin ($pyVer)"
 Set-Location $repoRoot
+Ensure-WindowsLibsodium
 
 if (-not (Test-Path ".venv")) {
     Write-Host "[demo-day] creating virtual environment"
