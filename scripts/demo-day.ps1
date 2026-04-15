@@ -16,17 +16,33 @@ function Ensure-WindowsLibsodium {
     }
 
     $arch = $env:PROCESSOR_ARCHITECTURE
-    $sourceDll = if ($arch -eq "AMD64") {
-        Join-Path $libsDir "libsodium-26.x64.dll"
+    $candidates = if ($arch -eq "AMD64") {
+        @(
+            (Join-Path $libsDir "libsodium-26.x64.dll"),
+            (Join-Path $libsDir "libsodium-26.x32.dll")
+        )
     }
     else {
-        Join-Path $libsDir "libsodium-26.x32.dll"
+        @(
+            (Join-Path $libsDir "libsodium-26.x32.dll"),
+            (Join-Path $libsDir "libsodium-26.x64.dll")
+        )
+    }
+
+    $sourceDll = $null
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            $sourceDll = $candidate
+            break
+        }
+    }
+
+    if ($null -eq $sourceDll) {
+        throw "[demo-day] ERROR: no bundled libsodium DLL found in $libsDir"
     }
 
     $targetDll = Join-Path $libsDir "libsodium.dll"
-    if ((Test-Path $sourceDll) -and -not (Test-Path $targetDll)) {
-        Copy-Item -Path $sourceDll -Destination $targetDll -Force
-    }
+    Copy-Item -Path $sourceDll -Destination $targetDll -Force
 
     if (Test-Path $targetDll) {
         $env:Path = "$libsDir;$env:Path"
@@ -161,6 +177,12 @@ if ($venvVer -ne "3.13") {
     Write-Host "[demo-day] existing .venv is Python $venvVer; recreating with Python 3.13"
     Remove-Item -Recurse -Force .venv
     Invoke-Python -m venv .venv
+}
+
+$basePythonDir = (& $venvPython -c "import sys; print(sys.base_prefix)").Trim()
+if (-not [string]::IsNullOrWhiteSpace($basePythonDir)) {
+    $basePythonDllDir = Join-Path $basePythonDir "DLLs"
+    $env:Path = "$basePythonDir;$basePythonDllDir;$env:Path"
 }
 
 Write-Host "[demo-day] installing dependencies (editable + dev extras)"

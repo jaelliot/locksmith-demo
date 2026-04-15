@@ -186,6 +186,8 @@ The launchers now auto-bootstrap `pip` inside `.venv` via `ensurepip` before dep
 
 On Windows, this means `pysodium` could not locate `libsodium.dll`. The PowerShell launcher now auto-prepares a `libsodium.dll` alias in the bundled `libsodium/` folder and prepends that folder to `PATH` before smoke tests.
 
+The launcher also prepends the base CPython runtime directories (`sys.base_prefix` and `sys.base_prefix\\DLLs`) to `PATH` so dependent runtime DLLs are discoverable when using a `uv`-provisioned Python.
+
 If you still see this error, re-run setup-only mode in a fresh shell:
 
 ```powershell
