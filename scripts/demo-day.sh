@@ -15,6 +15,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-}"
 SETUP_ONLY="${SETUP_ONLY:-0}"
 AUTO_INSTALL_UV="${AUTO_INSTALL_UV:-1}"
+LOCKSMITH_BASE="${LOCKSMITH_BASE:-locksmith-demo}"
+RESET_DEMO_STATE="${RESET_DEMO_STATE:-0}"
 
 install_uv_if_needed() {
   if command -v uv >/dev/null 2>&1; then
@@ -86,6 +88,23 @@ fi
 
 echo "[demo-day] using ${PYTHON_BIN} (${PY_VER})"
 cd "${REPO_ROOT}"
+
+export LOCKSMITH_BASE
+echo "[demo-day] using LOCKSMITH_BASE=${LOCKSMITH_BASE}"
+
+if [[ "${RESET_DEMO_STATE}" == "1" ]]; then
+  echo "[demo-day] clearing demo state for base '${LOCKSMITH_BASE}'"
+  for root in "${HOME}/.keri" "/usr/local/var/keri"; do
+    for store in db ks cf rt; do
+      target="${root}/${store}/${LOCKSMITH_BASE}"
+      if [[ -e "${target}" ]]; then
+        if ! rm -rf "${target}"; then
+          echo "[demo-day] WARNING: failed to remove ${target}"
+        fi
+      fi
+    done
+  done
+fi
 
 # ── Virtual environment ───────────────────────────────────────────────────────
 if [[ ! -d ".venv" ]]; then

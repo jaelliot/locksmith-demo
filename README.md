@@ -76,7 +76,24 @@ This repo currently proves local wallet bootstrap and UI navigation. It does not
 
 - Python 3.13 is required for the pinned PySide6 6.9.x stack.
 - Python 3.14 is not supported by this bootstrap.
+- Demo launchers default to `LOCKSMITH_BASE=locksmith-demo` so vault discovery is scoped to demo data instead of your full global `~/.keri` history.
 - The native launchers create `.venv`, install the editable package plus dev dependencies, regenerate Qt resources, run smoke tests, and then launch the GUI.
+
+## Blank-Slate Demo State
+
+If your vault drawer shows old vaults from previous runs, clear demo-scoped state and relaunch.
+
+- macOS/Linux:
+
+```bash
+RESET_DEMO_STATE=1 ./scripts/demo-day.sh
+```
+
+- Windows PowerShell:
+
+```powershell
+.\scripts\demo-day.ps1 -ResetDemoState
+```
 
 ## Troubleshooting
 

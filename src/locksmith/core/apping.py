@@ -4,6 +4,7 @@ locksmith.core.apping module
 
 This module contains main Locksmith Application class
 """
+import os
 from pathlib import Path
 
 from keri import help
@@ -272,10 +273,9 @@ class LocksmithApplication:
                     alias="API",
                 )
 
-    @staticmethod
-    def environments():
+    def environments(self):
         """
-        List all available vault environments.
+        List available vault environments scoped to the configured base.
 
         Returns:
             list: List of vault names
@@ -284,13 +284,17 @@ class LocksmithApplication:
         if not dbhome.exists():
             dbhome = Path(f'{Path.home()}/.keri/db')
 
+        base = os.environ.get('LOCKSMITH_BASE', self.config.base).strip()
+        if base:
+            dbhome = dbhome / base
+
         if not dbhome.is_dir():
             return []
 
         envs = []
         for p in dbhome.iterdir():
             if p.is_dir():  # Only include directories
-                envs.append(p.stem)
+                envs.append(p.name)
 
         return sorted(envs)  # Return sorted list
         

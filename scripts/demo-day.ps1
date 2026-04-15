@@ -1,13 +1,19 @@
 Param(
     [string]$PythonBin = "",
     [switch]$SetupOnly,
-    [switch]$NoAutoInstallUv
+    [switch]$NoAutoInstallUv,
+    [switch]$ResetDemoState
 )
 
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $autoInstallUv = -not $NoAutoInstallUv
+$locksmithBase = $env:LOCKSMITH_BASE
+if ([string]::IsNullOrWhiteSpace($locksmithBase)) {
+    $locksmithBase = "locksmith-demo"
+}
+$env:LOCKSMITH_BASE = $locksmithBase
 
 function Install-WindowsLibsodiumIfNeeded {
     $libsDir = Join-Path $repoRoot "libsodium"
@@ -300,6 +306,30 @@ if ($pyVer -ne "3.13") {
 
 Write-Host "[demo-day] using $PythonBin ($pyVer)"
 Set-Location $repoRoot
+Write-Host "[demo-day] using LOCKSMITH_BASE=$locksmithBase"
+
+if ($ResetDemoState) {
+    Write-Host "[demo-day] clearing demo state for base '$locksmithBase'"
+    $roots = @(
+        (Join-Path $HOME ".keri"),
+        "C:\ProgramData\keri"
+    )
+
+    foreach ($root in $roots) {
+        foreach ($store in @("db", "ks", "cf", "rt")) {
+            $target = Join-Path $root (Join-Path $store $locksmithBase)
+            if (Test-Path $target) {
+                try {
+                    Remove-Item -Recurse -Force $target
+                }
+                catch {
+                    Write-Host "[demo-day] WARNING: failed to remove $target"
+                }
+            }
+        }
+    }
+}
+
 Ensure-WindowsLibsodium
 
 if (-not (Test-Path ".venv")) {

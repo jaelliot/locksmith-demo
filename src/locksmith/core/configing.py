@@ -130,6 +130,7 @@ class LocksmithConfig:
         api_oobi = os.environ.get('LOCKSMITH_API_OOBI', api_oobi)
         unprotected_url = os.environ.get('LOCKSMITH_UNPROTECTED_URL', unprotected_url)
         protected_url = os.environ.get('LOCKSMITH_PROTECTED_URL', protected_url)
+        base = os.environ.get('LOCKSMITH_BASE', self.base).strip()
 
         self.root_aid = root_aid
         self.api_aid = api_aid
@@ -138,6 +139,7 @@ class LocksmithConfig:
         self.unprotected_url = unprotected_url
         self.protected_url = protected_url
         self.environment = environment
+        self.base = base
 
         # Plugin-specific configuration keyed by plugin_id.
         # Plugins read their config from plugin_configs.get("plugin_id", {}).
