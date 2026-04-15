@@ -49,6 +49,36 @@ function Ensure-WindowsLibsodium {
     }
 }
 
+function Test-WindowsLibsodiumLoad {
+    param(
+        [string]$PythonExe,
+        [string]$LibsDir
+    )
+
+    $candidates = @(
+        (Join-Path $LibsDir "libsodium.dll"),
+        (Join-Path $LibsDir "libsodium-26.x64.dll"),
+        (Join-Path $LibsDir "libsodium-26.x32.dll")
+    )
+
+    foreach ($candidate in $candidates) {
+        if (-not (Test-Path $candidate)) {
+            continue
+        }
+
+        & $PythonExe -c "import ctypes, sys; ctypes.WinDLL(sys.argv[1])" "$candidate" > $null 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $targetDll = Join-Path $LibsDir "libsodium.dll"
+            if ($candidate -ne $targetDll) {
+                Copy-Item -Path $candidate -Destination $targetDll -Force
+            }
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Install-UvIfNeeded {
     if (Get-Command uv -ErrorAction SilentlyContinue) {
         return $true
@@ -183,6 +213,11 @@ $basePythonDir = (& $venvPython -c "import sys; print(sys.base_prefix)").Trim()
 if (-not [string]::IsNullOrWhiteSpace($basePythonDir)) {
     $basePythonDllDir = Join-Path $basePythonDir "DLLs"
     $env:Path = "$basePythonDir;$basePythonDllDir;$env:Path"
+}
+
+$libsDir = Join-Path $repoRoot "libsodium"
+if (-not (Test-WindowsLibsodiumLoad -PythonExe $venvPython -LibsDir $libsDir)) {
+    throw "[demo-day] ERROR: unable to load bundled libsodium DLLs from $libsDir. Install Microsoft Visual C++ Redistributable (x64) and re-run."
 }
 
 Write-Host "[demo-day] installing dependencies (editable + dev extras)"

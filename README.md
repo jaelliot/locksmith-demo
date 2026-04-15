@@ -188,12 +188,16 @@ On Windows, this means `pysodium` could not locate `libsodium.dll`. The PowerShe
 
 The launcher also prepends the base CPython runtime directories (`sys.base_prefix` and `sys.base_prefix\\DLLs`) to `PATH` so dependent runtime DLLs are discoverable when using a `uv`-provisioned Python.
 
+The launcher now performs an explicit `ctypes.WinDLL(...)` probe against bundled `libsodium` candidates before smoke tests and will fail fast with a clear runtime dependency message if none load.
+
 If you still see this error, re-run setup-only mode in a fresh shell:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
 .\scripts\demo-day.ps1 -SetupOnly
 ```
+
+If the launcher reports that bundled `libsodium` cannot be loaded, install the Microsoft Visual C++ Redistributable (x64), open a new shell, and re-run setup-only mode.
 
 ### Docker cannot open GUI
 
