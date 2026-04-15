@@ -16,6 +16,27 @@ This repository embeds the full LockSmith source so attendees can clone one repo
 - Python 3.14 is not supported by this demo bootstrap.
 - Setup assumes internet access (package and runtime downloads).
 
+## Windows Presenter Lane (Recommended)
+
+If you are presenting from a Windows laptop, use native PowerShell, not WSL2, for GUI reliability.
+
+1. Open PowerShell or Windows Terminal (PowerShell profile)
+2. Clone and enter the repo
+3. Run setup-only preflight:
+
+```powershell
+.\scripts\demo-day.ps1 -SetupOnly
+```
+
+4. Confirm smoke tests report `7 passed`
+5. Launch GUI:
+
+```powershell
+.\scripts\demo-day.ps1
+```
+
+If execution policy blocks the script, see Troubleshooting below.
+
 ## Quick Start
 
 ### 1. Clone
@@ -103,6 +124,16 @@ Both launchers perform the same flow:
 - Disable auto uv install: `.\scripts\demo-day.ps1 -NoAutoInstallUv`
 - Force interpreter: `.\scripts\demo-day.ps1 -PythonBin python3.13`
 
+### Windows prep shortcut
+
+Run preflight and GUI from one native PowerShell session:
+
+```powershell
+Set-Location <path-to-locksmith-demo>
+.\scripts\demo-day.ps1 -SetupOnly
+.\scripts\demo-day.ps1
+```
+
 ## Known Limitations
 
 - Credential issuance requires a live witness pool and active ACDC schema/registry infrastructure.
@@ -148,6 +179,42 @@ Expected behavior. Docker lane is headless preflight only. Use native host launc
 ### WSL2 GUI instability
 
 Use WSL2 for preflight checks and switch to native Windows PowerShell for conference GUI launch.
+
+### Script cannot run due to execution policy
+
+If you see a policy error, run this in the same PowerShell session:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\demo-day.ps1 -SetupOnly
+```
+
+This affects only the current shell and does not change system-wide policy.
+
+## Save and Commit Checklist
+
+Use this before conference day so the demo branch and notes are not lost:
+
+1. Verify repo status:
+
+```bash
+git status -sb
+```
+
+2. Commit demo repo updates:
+
+```bash
+git add -A
+git commit -m "docs: expand PowerShell runbook and prep checklist"
+```
+
+3. Push branch:
+
+```bash
+git push -u origin <feature-branch>
+```
+
+4. If you also updated private planning notes (daily summary, prep docs), commit and push those in the `projects/private-tools/billing-ops-tasks` repo separately.
 
 ## Keeping in Sync with Upstream
 
