@@ -71,7 +71,11 @@ if [[ "${PYTHON_BIN}" != uv\ run* ]] && ! command -v "${PYTHON_BIN}" >/dev/null 
   exit 1
 fi
 
-PY_VER="$(eval "${PYTHON_BIN}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+if [[ "${PYTHON_BIN}" == uv\ run* ]]; then
+  PY_VER="$(uv run --python 3.13 python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+else
+  PY_VER="$("${PYTHON_BIN}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+fi
 if [[ "${PY_VER}" == "3.14" ]]; then
   echo "[demo-day] ERROR: ${PYTHON_BIN} is Python 3.14, which is incompatible with PySide6 6.9.x."
   echo "[demo-day]        Install/use Python 3.13 and re-run, or set:"
