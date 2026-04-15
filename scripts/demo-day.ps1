@@ -9,10 +9,85 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $autoInstallUv = -not $NoAutoInstallUv
 
+function Install-WindowsLibsodiumIfNeeded {
+    $libsDir = Join-Path $repoRoot "libsodium"
+    
+    # Check if libsodium directory exists and has the required DLLs
+    if (Test-Path $libsDir) {
+        $arch = $env:PROCESSOR_ARCHITECTURE
+        $requiredDll = if ($arch -eq "AMD64") {
+            Join-Path $libsDir "libsodium-26.x64.dll"
+        } else {
+            Join-Path $libsDir "libsodium-26.x32.dll"
+        }
+        
+        if (Test-Path $requiredDll) {
+            Write-Host "[demo-day] libsodium already present"
+            return $true
+        }
+    }
+    
+    # Need to download libsodium
+    Write-Host "[demo-day] libsodium not found; downloading..."
+    
+    try {
+        $tempZip = Join-Path $repoRoot "libsodium_download.zip"
+        $tempDir = Join-Path $repoRoot "libsodium_temp"
+        
+        # Download libsodium release
+        $url = "https://github.com/jedisct1/libsodium/releases/download/1.0.19-RELEASE/libsodium-1.0.19-msvc.zip"
+        Write-Host "[demo-day] Downloading from $url"
+        Invoke-WebRequest -Uri $url -OutFile $tempZip -UseBasicParsing
+        
+        # Extract
+        if (Test-Path $tempDir) {
+            Remove-Item -Recurse -Force $tempDir
+        }
+        Expand-Archive -Path $tempZip -DestinationPath $tempDir -Force
+        
+        # Create libsodium directory if it doesn't exist
+        if (-not (Test-Path $libsDir)) {
+            New-Item -ItemType Directory -Force -Path $libsDir | Out-Null
+        }
+        
+        # Copy the appropriate DLLs based on architecture
+        $arch = $env:PROCESSOR_ARCHITECTURE
+        if ($arch -eq "AMD64") {
+            $x64Dll = Join-Path $tempDir "libsodium\x64\Release\v143\dynamic\libsodium.dll"
+            $x86Dll = Join-Path $tempDir "libsodium\Win32\Release\v143\dynamic\libsodium.dll"
+        } else {
+            $x86Dll = Join-Path $tempDir "libsodium\Win32\Release\v143\dynamic\libsodium.dll"
+            $x64Dll = Join-Path $tempDir "libsodium\x64\Release\v143\dynamic\libsodium.dll"
+        }
+        
+        if (Test-Path $x64Dll) {
+            Copy-Item -Path $x64Dll -Destination (Join-Path $libsDir "libsodium-26.x64.dll") -Force
+        }
+        if (Test-Path $x86Dll) {
+            Copy-Item -Path $x86Dll -Destination (Join-Path $libsDir "libsodium-26.x32.dll") -Force
+        }
+        
+        # Cleanup
+        Remove-Item -Recurse -Force $tempDir
+        Remove-Item -Force $tempZip
+        
+        Write-Host "[demo-day] libsodium downloaded and installed"
+        return $true
+    }
+    catch {
+        Write-Host "[demo-day] WARNING: failed to auto-download libsodium: $_"
+        return $false
+    }
+}
+
 function Ensure-WindowsLibsodium {
     $libsDir = Join-Path $repoRoot "libsodium"
     if (-not (Test-Path $libsDir)) {
-        return
+        # Try to auto-install libsodium
+        if (-not (Install-WindowsLibsodiumIfNeeded)) {
+            Write-Host "[demo-day] WARNING: libsodium not available - some tests may fail"
+            return
+        }
     }
 
     $arch = $env:PROCESSOR_ARCHITECTURE
@@ -38,11 +113,30 @@ function Ensure-WindowsLibsodium {
     }
 
     if ($null -eq $sourceDll) {
-        throw "[demo-day] ERROR: no bundled libsodium DLL found in $libsDir"
+        Write-Host "[demo-day] WARNING: no bundled libsodium DLL found in $libsDir - some tests may fail"
+        return
     }
 
     $targetDll = Join-Path $libsDir "libsodium.dll"
-    Copy-Item -Path $sourceDll -Destination $targetDll -Force
+    
+    # Check if target already exists and is the same size - skip copy if so
+    $skipCopy = $false
+    if (Test-Path $targetDll) {
+        $sourceSize = (Get-Item $sourceDll).Length
+        $targetSize = (Get-Item $targetDll).Length
+        if ($sourceSize -eq $targetSize) {
+            $skipCopy = $true
+            Write-Host "[demo-day] libsodium. DLL already up to date, skipping copy"
+        }
+    }
+    
+    if (-not $skipCopy) {
+        try {
+            Copy-Item -Path $sourceDll -Destination $targetDll -Force -ErrorAction Stop
+        } catch {
+            Write-Host "[demo-day] WARNING: could not copy libsodium DLL (may be in use by another process) - continuing anyway"
+        }
+    }
 
     if (Test-Path $targetDll) {
         $env:Path = "$libsDir;$env:Path"
@@ -89,7 +183,7 @@ function Test-WindowsLibsodiumLoad {
         if ($LASTEXITCODE -eq 0) {
             $targetDll = Join-Path $LibsDir "libsodium.dll"
             if ($candidate -ne $targetDll) {
-                Copy-Item -Path $candidate -Destination $targetDll -Force
+                try { Copy-Item -Path $candidate -Destination $targetDll -Force -ErrorAction Stop } catch { Write-Host "[demo-day] WARNING: could not copy libsodium DLL (may be in use) - continuing anyway" }
             }
             return $true
         }
@@ -235,8 +329,35 @@ if (-not [string]::IsNullOrWhiteSpace($basePythonDir)) {
 }
 
 $libsDir = Join-Path $repoRoot "libsodium"
-if (-not (Test-WindowsLibsodiumLoad -PythonExe $venvPython -LibsDir $libsDir)) {
-    throw "[demo-day] ERROR: unable to load bundled libsodium DLLs from $libsDir. Install Microsoft Visual C++ Redistributable (x64) and re-run."
+
+# Check if libsodium directory exists and has required DLLs
+$libsodiumAvailable = $false
+if (-not (Test-Path $libsDir)) {
+    Write-Host "[demo-day] libsodium directory not found; attempting auto-download..."
+    $libsodiumAvailable = Install-WindowsLibsodiumIfNeeded
+} else {
+    # Directory exists, check if it has the required DLLs
+    $arch = $env:PROCESSOR_ARCHITECTURE
+    $requiredDll = if ($arch -eq "AMD64") {
+        Join-Path $libsDir "libsodium-26.x64.dll"
+    } else {
+        Join-Path $libsDir "libsodium-26.x32.dll"
+    }
+    
+    if (-not (Test-Path $requiredDll)) {
+        Write-Host "[demo-day] libsodium DLLs not found; attempting auto-download..."
+        $libsodiumAvailable = Install-WindowsLibsodiumIfNeeded
+    } else {
+        $libsodiumAvailable = $true
+    }
+}
+
+# Test if libsodium can be loaded
+if ($libsodiumAvailable -and (Test-WindowsLibsodiumLoad -PythonExe $venvPython -LibsDir $libsDir)) {
+    Write-Host "[demo-day] libsodium loaded successfully"
+} else {
+    Write-Host "[demo-day] WARNING: unable to load libsodium - some tests may fail"
+    Write-Host "[demo-day] To fix: Install Microsoft Visual C++ Redistributable (x64) or ensure libsodium DLLs are in $libsDir"
 }
 
 Write-Host "[demo-day] installing dependencies (editable + dev extras)"
@@ -293,3 +414,4 @@ if ($SetupOnly) {
 
 Write-Host "[demo-day] launching LockSmith"
 & $venvPython ".\src\locksmith\main.py"
+

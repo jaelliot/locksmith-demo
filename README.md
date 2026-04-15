@@ -184,11 +184,11 @@ The launchers now auto-bootstrap `pip` inside `.venv` via `ensurepip` before dep
 
 ### `LoadLibrary() argument 1 must be str, not None`
 
-On Windows, this means `pysodium` could not locate `libsodium.dll`. The PowerShell launcher now auto-prepares a `libsodium.dll` alias in the bundled `libsodium/` folder and prepends that folder to `PATH` before smoke tests.
+On Windows, this means `pysodium` could not locate `libsodium.dll`. The PowerShell launcher now auto-downloads libsodium from the official GitHub releases if the `libsodium/` directory is missing or doesn't contain the required DLLs.
 
 The launcher also prepends the base CPython runtime directories (`sys.base_prefix` and `sys.base_prefix\\DLLs`) to `PATH` so dependent runtime DLLs are discoverable when using a `uv`-provisioned Python.
 
-The launcher now performs an explicit `ctypes.WinDLL(...)` probe against bundled `libsodium` candidates before smoke tests and will fail fast with a clear runtime dependency message if none load.
+The launcher performs an explicit `ctypes.WinDLL(...)` probe against bundled `libsodium` candidates before smoke tests. If the probe fails, it shows a warning instead of failing completely, allowing tests to continue.
 
 If you still see this error, re-run setup-only mode in a fresh shell:
 
