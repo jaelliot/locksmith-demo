@@ -103,7 +103,7 @@ Expected test summary:
 
 Both launchers perform the same flow:
 
-1. Locate Python 3.13/3.12
+1. Locate Python 3.13
 2. If unavailable, install `uv` (unless disabled) and provision Python 3.13
 3. Create or refresh `.venv`
 4. Install editable package and dev dependencies
@@ -156,6 +156,8 @@ Set-Location <path-to-locksmith-demo>
 
 Use Python 3.13 explicitly.
 
+Python 3.12 is also rejected by the PowerShell launcher to avoid non-reproducible conference setups.
+
 - POSIX:
 
 ```bash
@@ -193,7 +195,7 @@ This affects only the current shell and does not change system-wide policy.
 
 ## Save and Commit Checklist
 
-Use this before conference day so the demo branch and notes are not lost:
+Use this before conference day so local edits are not lost:
 
 1. Verify repo status:
 
@@ -208,10 +210,10 @@ git add -A
 git commit -m "docs: expand PowerShell runbook and prep checklist"
 ```
 
-3. Push branch:
+3. Push main:
 
 ```bash
-git push -u origin <feature-branch>
+git push origin main
 ```
 
 4. If you also updated private planning notes (daily summary, prep docs), commit and push those in the `projects/private-tools/billing-ops-tasks` repo separately.

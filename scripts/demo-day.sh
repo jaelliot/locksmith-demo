@@ -41,9 +41,9 @@ install_uv_if_needed() {
 }
 
 # ── Interpreter selection ─────────────────────────────────────────────────────
-# PySide6 6.9.x is incompatible with Python 3.14; prefer 3.13 then 3.12.
+# PySide6 6.9.x in this demo is pinned to Python 3.13 for reproducibility.
 if [[ -z "${PYTHON_BIN}" ]]; then
-  for candidate in python3.13 python3.12; do
+  for candidate in python3.13; do
     if command -v "${candidate}" >/dev/null 2>&1; then
       PYTHON_BIN="${candidate}"
       break
@@ -76,8 +76,9 @@ if [[ "${PYTHON_BIN}" == uv\ run* ]]; then
 else
   PY_VER="$("${PYTHON_BIN}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 fi
-if [[ "${PY_VER}" == "3.14" ]]; then
-  echo "[demo-day] ERROR: ${PYTHON_BIN} is Python 3.14, which is incompatible with PySide6 6.9.x."
+if [[ "${PY_VER}" != "3.13" ]]; then
+  echo "[demo-day] ERROR: ${PYTHON_BIN} resolved to Python ${PY_VER}."
+  echo "[demo-day]        This demo requires Python 3.13 (PySide6 6.9.x compatibility)."
   echo "[demo-day]        Install/use Python 3.13 and re-run, or set:"
   echo "[demo-day]        PYTHON_BIN=python3.13 ./scripts/demo-day.sh"
   exit 1
@@ -93,8 +94,8 @@ if [[ ! -d ".venv" ]]; then
 fi
 
 VENV_VER="$(.venv/bin/python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-if [[ "${VENV_VER}" == "3.14" ]]; then
-  echo "[demo-day] existing .venv is Python 3.14; recreating with ${PYTHON_BIN}"
+if [[ "${VENV_VER}" != "3.13" ]]; then
+  echo "[demo-day] existing .venv is Python ${VENV_VER}; recreating with ${PYTHON_BIN}"
   rm -rf .venv
   eval "${PYTHON_BIN}" -m venv .venv
 fi

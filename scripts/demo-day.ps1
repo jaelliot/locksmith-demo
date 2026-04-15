@@ -41,33 +41,44 @@ function Install-UvIfNeeded {
 
 function Invoke-Python {
     param(
-        [string[]]$Args,
-        [switch]$NoProfile
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]]$PyArgs
     )
 
     if ($script:UsingUvPython) {
-        $baseArgs = @("run", "--python", "3.13", "python")
-        & uv @baseArgs @Args
-    }
-    elseif ($NoProfile) {
-        & $script:PythonBin @Args
+        & uv @("run", "--python", "3.13", "python") @PyArgs
     }
     else {
-        & $script:PythonBin @Args
+        & $script:PythonCmd @script:PythonBaseArgs @PyArgs
     }
 
     if ($LASTEXITCODE -ne 0) {
-        throw "Python command failed: $($Args -join ' ')"
+        throw "Python command failed: $($PyArgs -join ' ')"
     }
 }
 
 # Interpreter selection (PySide6 6.9.x is incompatible with Python 3.14).
 $script:UsingUvPython = $false
+$script:PythonCmd = ""
+$script:PythonBaseArgs = @()
 if ([string]::IsNullOrWhiteSpace($PythonBin)) {
-    foreach ($candidate in @("python3.13", "python3.12", "python")) {
+    foreach ($candidate in @("python3.13")) {
         if (Get-Command $candidate -ErrorAction SilentlyContinue) {
             $PythonBin = $candidate
             break
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($PythonBin) -and (Get-Command py -ErrorAction SilentlyContinue)) {
+        try {
+            $probe = (& py -3.13 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
+            if ($probe -eq "3.13") {
+                $PythonBin = "py"
+                $script:PythonBaseArgs = @("-3.13")
+            }
+        }
+        catch {
+            # Keep searching/provisioning below.
         }
     }
 }
@@ -92,16 +103,16 @@ if (-not $script:UsingUvPython -and -not (Get-Command $PythonBin -ErrorAction Si
     throw "[demo-day] ERROR: PythonBin '$PythonBin' is not executable on PATH."
 }
 
-$script:PythonBin = $PythonBin
+$script:PythonCmd = $PythonBin
 
 $pyVer = if ($script:UsingUvPython) {
     (& uv run --python 3.13 python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
 } else {
-    (& $PythonBin -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
+    (& $script:PythonCmd @script:PythonBaseArgs -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
 }
 
-if ($pyVer -eq "3.14") {
-    throw "[demo-day] ERROR: Python 3.14 is incompatible with PySide6 6.9.x. Use Python 3.13."
+if ($pyVer -ne "3.13") {
+    throw "[demo-day] ERROR: Python $pyVer detected. This demo requires Python 3.13 (PySide6 6.9.x compatibility)."
 }
 
 Write-Host "[demo-day] using $PythonBin ($pyVer)"
@@ -109,7 +120,7 @@ Set-Location $repoRoot
 
 if (-not (Test-Path ".venv")) {
     Write-Host "[demo-day] creating virtual environment"
-    Invoke-Python -Args @("-m", "venv", ".venv")
+    Invoke-Python -m venv .venv
 }
 
 $venvPython = ".venv\Scripts\python.exe"
@@ -121,10 +132,10 @@ if (-not (Test-Path $venvPython)) {
 }
 
 $venvVer = (& $venvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
-if ($venvVer -eq "3.14") {
-    Write-Host "[demo-day] existing .venv is Python 3.14; recreating"
+if ($venvVer -ne "3.13") {
+    Write-Host "[demo-day] existing .venv is Python $venvVer; recreating with Python 3.13"
     Remove-Item -Recurse -Force .venv
-    Invoke-Python -Args @("-m", "venv", ".venv")
+    Invoke-Python -m venv .venv
 }
 
 Write-Host "[demo-day] installing dependencies (editable + dev extras)"
