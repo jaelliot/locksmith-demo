@@ -181,7 +181,7 @@ Once the GUI opens, follow this guided tour:
 
 If your vault drawer shows old vaults from previous runs, run the reset + verify flow below.
 
-Close LockSmith fully before reset (including any background terminal run). Reset removes `LOCKSMITH_BASE`-scoped records from both home and `/usr/local/var/keri` roots, including `db`, `ks`, `cf`, `rt`, `reg`, `mbx`, `not`, and `locksmith` stores.
+Close LockSmith fully before reset (including any background terminal run). Reset removes `LOCKSMITH_BASE`-scoped records from all known KERI roots for the current platform, including `~/.keri`, `/usr/local/var/keri`, `/opt/homebrew/var/keri`, `/var/keri`, and the `db`, `ks`, `cf`, `rt`, `reg`, `mbx`, `not`, and `locksmith` stores beneath them.
 
 ### Reset + Verify
 
@@ -212,6 +212,7 @@ RESET_DEMO_STATE=1 SETUP_ONLY=1 ./scripts/demo-day.sh
 3. **Confirm reset summary in logs**
 
 ```text
+[demo-day] reset roots: <root1> <root2> ...
 [demo-day] reset summary: removed=<N> missing=<N> failed=0
 ```
 

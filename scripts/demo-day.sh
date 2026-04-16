@@ -18,6 +18,31 @@ AUTO_INSTALL_UV="${AUTO_INSTALL_UV:-1}"
 LOCKSMITH_BASE="${LOCKSMITH_BASE:-locksmith-demo}"
 RESET_DEMO_STATE="${RESET_DEMO_STATE:-0}"
 
+add_reset_root_if_missing() {
+  local candidate="$1"
+
+  if [[ -z "${candidate}" ]]; then
+    return 0
+  fi
+
+  for existing in "${RESET_ROOTS[@]:-}"; do
+    if [[ "${existing}" == "${candidate}" ]]; then
+      return 0
+    fi
+  done
+
+  RESET_ROOTS+=("${candidate}")
+}
+
+collect_reset_roots() {
+  RESET_ROOTS=()
+
+  add_reset_root_if_missing "${HOME}/.keri"
+  add_reset_root_if_missing "/usr/local/var/keri"
+  add_reset_root_if_missing "/opt/homebrew/var/keri"
+  add_reset_root_if_missing "/var/keri"
+}
+
 install_uv_if_needed() {
   if command -v uv >/dev/null 2>&1; then
     return 0
@@ -97,10 +122,12 @@ if [[ "${RESET_DEMO_STATE}" == "1" ]]; then
   removed=0
   missing=0
   failed=0
-  roots=("${HOME}/.keri" "/usr/local/var/keri")
+  collect_reset_roots
   stores=(db ks cf rt reg mbx not locksmith)
 
-  for root in "${roots[@]}"; do
+  echo "[demo-day] reset roots: ${RESET_ROOTS[*]}"
+
+  for root in "${RESET_ROOTS[@]}"; do
     for store in "${stores[@]}"; do
       target="${root}/${store}/${LOCKSMITH_BASE}"
       if [[ -e "${target}" ]]; then
