@@ -7,6 +7,8 @@ This module contains the peer-to-peer challenge response protocol
 
 """
 import os
+import socket
+import tempfile
 
 from hio.base import doing
 from hio.help import decking
@@ -47,10 +49,16 @@ class TurretDoer(doing.DoDoer):
         hab = hby.habByName(locksmith_alias, ns="settings")
         cues = decking.Deck()
 
-        if os.path.exists("/tmp/keripy_kli.s"):
-            os.remove("/tmp/keripy_kli.s")
+        # Turret uses Unix-domain sockets. On platforms/runtime builds without
+        # AF_UNIX (seen on some Windows Python builds), disable turret cleanly.
+        if not hasattr(socket, "AF_UNIX"):
+            raise RuntimeError("Unix domain sockets are unavailable on this platform")
 
-        server = Server(path="/tmp/keripy_kli.s", bufsize=8069)
+        socket_path = os.path.join(tempfile.gettempdir(), "keripy_kli.s")
+        if os.path.exists(socket_path):
+            os.remove(socket_path)
+
+        server = Server(path=socket_path, bufsize=8069)
         server_doer = ServerDoer(server=server)
 
         exc = exchanging.Exchanger(hby, handlers=[])

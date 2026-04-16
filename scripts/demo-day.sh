@@ -94,16 +94,33 @@ echo "[demo-day] using LOCKSMITH_BASE=${LOCKSMITH_BASE}"
 
 if [[ "${RESET_DEMO_STATE}" == "1" ]]; then
   echo "[demo-day] clearing demo state for base '${LOCKSMITH_BASE}'"
-  for root in "${HOME}/.keri" "/usr/local/var/keri"; do
-    for store in db ks cf rt; do
+  removed=0
+  missing=0
+  failed=0
+  roots=("${HOME}/.keri" "/usr/local/var/keri")
+  stores=(db ks cf rt reg mbx not locksmith)
+
+  for root in "${roots[@]}"; do
+    for store in "${stores[@]}"; do
       target="${root}/${store}/${LOCKSMITH_BASE}"
       if [[ -e "${target}" ]]; then
         if ! rm -rf "${target}"; then
           echo "[demo-day] WARNING: failed to remove ${target}"
+          failed=$((failed + 1))
+        else
+          echo "[demo-day] removed ${target}"
+          removed=$((removed + 1))
         fi
+      else
+        missing=$((missing + 1))
       fi
     done
   done
+
+  echo "[demo-day] reset summary: removed=${removed} missing=${missing} failed=${failed}"
+  if [[ "${failed}" != "0" ]]; then
+    echo "[demo-day] WARNING: reset completed with failed removals. Ensure LockSmith is fully closed and retry."
+  fi
 fi
 
 # ── Virtual environment ───────────────────────────────────────────────────────

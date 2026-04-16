@@ -16,10 +16,14 @@ if ([string]::IsNullOrWhiteSpace($locksmithBase)) {
 $env:LOCKSMITH_BASE = $locksmithBase
 
 function Install-WindowsLibsodiumIfNeeded {
+    param(
+        [switch]$ForceRefresh
+    )
+
     $libsDir = Join-Path $repoRoot "libsodium"
     
     # Check if libsodium directory exists and has the required DLLs
-    if (Test-Path $libsDir) {
+    if ((-not $ForceRefresh) -and (Test-Path $libsDir)) {
         $arch = $env:PROCESSOR_ARCHITECTURE
         $requiredDll = if ($arch -eq "AMD64") {
             Join-Path $libsDir "libsodium-26.x64.dll"
@@ -34,7 +38,11 @@ function Install-WindowsLibsodiumIfNeeded {
     }
     
     # Need to download libsodium
-    Write-Host "[demo-day] libsodium not found; downloading..."
+    if ($ForceRefresh) {
+        Write-Host "[demo-day] refreshing bundled libsodium binaries..."
+    } else {
+        Write-Host "[demo-day] libsodium not found; downloading..."
+    }
     
     try {
         $tempZip = Join-Path $repoRoot "libsodium_download.zip"
@@ -51,7 +59,10 @@ function Install-WindowsLibsodiumIfNeeded {
         }
         Expand-Archive -Path $tempZip -DestinationPath $tempDir -Force
         
-        # Create libsodium directory if it doesn't exist
+        # Recreate libsodium directory on forced refresh
+        if ($ForceRefresh -and (Test-Path $libsDir)) {
+            Remove-Item -Recurse -Force $libsDir
+        }
         if (-not (Test-Path $libsDir)) {
             New-Item -ItemType Directory -Force -Path $libsDir | Out-Null
         }
@@ -86,7 +97,7 @@ function Install-WindowsLibsodiumIfNeeded {
     }
 }
 
-function Ensure-WindowsLibsodium {
+function Initialize-WindowsLibsodium {
     $libsDir = Join-Path $repoRoot "libsodium"
     if (-not (Test-Path $libsDir)) {
         # Try to auto-install libsodium
@@ -173,9 +184,16 @@ function Test-WindowsLibsodiumLoad {
             $oldNativeErrPref = $Global:PSNativeCommandUseErrorActionPreference
         }
 
+        $canLoadCandidate = $false
         try {
             $Global:PSNativeCommandUseErrorActionPreference = $false
-            & $PythonExe -c "import ctypes, sys; ctypes.WinDLL(sys.argv[1])" "$candidate" > $null 2>&1
+            try {
+                & $PythonExe -c "import ctypes, sys; ctypes.WinDLL(sys.argv[1])" "$candidate" *> $null
+                $canLoadCandidate = ($LASTEXITCODE -eq 0)
+            }
+            catch {
+                $canLoadCandidate = $false
+            }
         }
         finally {
             if ($hadNativeErrPref) {
@@ -186,7 +204,7 @@ function Test-WindowsLibsodiumLoad {
             }
         }
 
-        if ($LASTEXITCODE -eq 0) {
+        if ($canLoadCandidate) {
             $targetDll = Join-Path $LibsDir "libsodium.dll"
             if ($candidate -ne $targetDll) {
                 try { Copy-Item -Path $candidate -Destination $targetDll -Force -ErrorAction Stop } catch { Write-Host "[demo-day] WARNING: could not copy libsodium DLL (may be in use) - continuing anyway" }
@@ -258,9 +276,24 @@ if ([string]::IsNullOrWhiteSpace($PythonBin)) {
         }
     }
 
+    # Windows python.org installs `python` on PATH, not `python3.13`.
+    if ([string]::IsNullOrWhiteSpace($PythonBin) -and ($env:OS -match "Windows")) {
+        if (Get-Command python -ErrorAction SilentlyContinue) {
+            try {
+                $probe = (& python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
+                if ($probe -eq "3.13") {
+                    $PythonBin = "python"
+                }
+            }
+            catch {
+                # Keep searching/provisioning below.
+            }
+        }
+    }
+
     if ([string]::IsNullOrWhiteSpace($PythonBin) -and (Get-Command py -ErrorAction SilentlyContinue)) {
         try {
-            $probe = (& py -3.13 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
+            $probe = ((& py -3.13 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null)).Trim()
             if ($probe -eq "3.13") {
                 $PythonBin = "py"
                 $script:PythonBaseArgs = @("-3.13")
@@ -288,11 +321,49 @@ if ([string]::IsNullOrWhiteSpace($PythonBin)) {
     throw "[demo-day] ERROR: no usable Python found. Install Python 3.13 or install uv."
 }
 
-if (-not $script:UsingUvPython -and -not (Get-Command $PythonBin -ErrorAction SilentlyContinue)) {
-    throw "[demo-day] ERROR: PythonBin '$PythonBin' is not executable on PATH."
+if (-not $script:UsingUvPython) {
+    $resolved = $false
+    if (Get-Command $PythonBin -ErrorAction SilentlyContinue) {
+        $script:PythonCmd = $PythonBin
+        # Auto-discovery may have set BaseArgs (e.g. `py -3.13`); do not clear them.
+        if ($script:PythonBaseArgs.Count -eq 0) {
+            $script:PythonBaseArgs = @()
+        }
+        $resolved = $true
+    }
+    elseif (($PythonBin -eq "python3.13") -and ($env:OS -match "Windows")) {
+        # README uses `python3.13` like Unix; on Windows use `python` or `py -3.13`.
+        if (Get-Command python -ErrorAction SilentlyContinue) {
+            try {
+                $probe = (& python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
+                if ($probe -eq "3.13") {
+                    $script:PythonCmd = "python"
+                    $script:PythonBaseArgs = @()
+                    $resolved = $true
+                }
+            }
+            catch {
+                # Try `py` below.
+            }
+        }
+        if (-not $resolved -and (Get-Command py -ErrorAction SilentlyContinue)) {
+            try {
+                $probe = ((& py -3.13 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null)).Trim()
+                if ($probe -eq "3.13") {
+                    $script:PythonCmd = "py"
+                    $script:PythonBaseArgs = @("-3.13")
+                    $resolved = $true
+                }
+            }
+            catch {
+                # Fall through to error.
+            }
+        }
+    }
+    if (-not $resolved) {
+        throw "[demo-day] ERROR: PythonBin '$PythonBin' is not executable on PATH."
+    }
 }
-
-$script:PythonCmd = $PythonBin
 
 $pyVer = if ($script:UsingUvPython) {
     (& uv run --python 3.13 python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
@@ -304,7 +375,16 @@ if ($pyVer -ne "3.13") {
     throw "[demo-day] ERROR: Python $pyVer detected. This demo requires Python 3.13 (PySide6 6.9.x compatibility)."
 }
 
-Write-Host "[demo-day] using $PythonBin ($pyVer)"
+$interpLabel = if ($script:UsingUvPython) {
+    "uv (Python 3.13)"
+}
+elseif ($script:PythonBaseArgs.Count -gt 0) {
+    "$($script:PythonCmd) $($script:PythonBaseArgs -join ' ')"
+}
+else {
+    $script:PythonCmd
+}
+Write-Host "[demo-day] using $interpLabel ($pyVer)"
 Set-Location $repoRoot
 Write-Host "[demo-day] using LOCKSMITH_BASE=$locksmithBase"
 
@@ -312,25 +392,45 @@ if ($ResetDemoState) {
     Write-Host "[demo-day] clearing demo state for base '$locksmithBase'"
     $roots = @(
         (Join-Path $HOME ".keri"),
-        "C:\ProgramData\keri"
-    )
+        "C:\usr\local\var\keri",
+        "C:\ProgramData\keri",
+        "/usr/local/var/keri"
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+
+    # KERI stores keyed by LOCKSMITH_BASE.
+    $stores = @("db", "ks", "cf", "rt", "reg", "mbx", "not", "locksmith")
+
+    $removedTargets = New-Object System.Collections.Generic.List[string]
+    $missingTargets = New-Object System.Collections.Generic.List[string]
+    $failedTargets = New-Object System.Collections.Generic.List[string]
 
     foreach ($root in $roots) {
-        foreach ($store in @("db", "ks", "cf", "rt")) {
+        foreach ($store in $stores) {
             $target = Join-Path $root (Join-Path $store $locksmithBase)
             if (Test-Path $target) {
                 try {
-                    Remove-Item -Recurse -Force $target
+                    Remove-Item -Recurse -Force $target -ErrorAction Stop
+                    $removedTargets.Add($target)
+                    Write-Host "[demo-day] removed $target"
                 }
                 catch {
+                    $failedTargets.Add($target)
                     Write-Host "[demo-day] WARNING: failed to remove $target"
                 }
             }
+            else {
+                $missingTargets.Add($target)
+            }
         }
+    }
+
+    Write-Host "[demo-day] reset summary: removed=$($removedTargets.Count) missing=$($missingTargets.Count) failed=$($failedTargets.Count)"
+    if ($failedTargets.Count -gt 0) {
+        Write-Host "[demo-day] WARNING: reset completed with failed removals. Ensure LockSmith is fully closed and retry."
     }
 }
 
-Ensure-WindowsLibsodium
+Initialize-WindowsLibsodium
 
 if (-not (Test-Path ".venv")) {
     Write-Host "[demo-day] creating virtual environment"
@@ -383,11 +483,26 @@ if (-not (Test-Path $libsDir)) {
 }
 
 # Test if libsodium can be loaded
-if ($libsodiumAvailable -and (Test-WindowsLibsodiumLoad -PythonExe $venvPython -LibsDir $libsDir)) {
+$libsodiumLoaded = $false
+if ($libsodiumAvailable) {
+    $libsodiumLoaded = Test-WindowsLibsodiumLoad -PythonExe $venvPython -LibsDir $libsDir
+}
+
+if ($libsodiumLoaded) {
     Write-Host "[demo-day] libsodium loaded successfully"
 } else {
-    Write-Host "[demo-day] WARNING: unable to load libsodium - some tests may fail"
-    Write-Host "[demo-day] To fix: Install Microsoft Visual C++ Redistributable (x64) or ensure libsodium DLLs are in $libsDir"
+    # One self-heal attempt: refresh DLL bundle and probe again.
+    if (Install-WindowsLibsodiumIfNeeded -ForceRefresh) {
+        Initialize-WindowsLibsodium
+        $libsodiumLoaded = Test-WindowsLibsodiumLoad -PythonExe $venvPython -LibsDir $libsDir
+    }
+
+    if ($libsodiumLoaded) {
+        Write-Host "[demo-day] libsodium loaded successfully after refresh"
+    } else {
+        Write-Host "[demo-day] WARNING: unable to load libsodium - some tests may fail"
+        Write-Host "[demo-day] To fix: Install Microsoft Visual C++ Redistributable (x64) or ensure libsodium DLLs are in $libsDir"
+    }
 }
 
 Write-Host "[demo-day] installing dependencies (editable + dev extras)"
@@ -433,9 +548,22 @@ if ($LASTEXITCODE -ne 0) { throw "pyside6-rcc failed" }
 Move-Item -Force "resources_rc.py" ".\src\locksmith\resources_rc.py"
 
 Write-Host "[demo-day] running smoke tests"
-$env:QT_QPA_PLATFORM = "offscreen"
-& $venvPytest "tests/" "-v" "--tb=short"
-if ($LASTEXITCODE -ne 0) { throw "smoke tests failed" }
+$previousQtPlatform = $env:QT_QPA_PLATFORM
+$hadQtPlatform = Test-Path Env:QT_QPA_PLATFORM
+
+try {
+    $env:QT_QPA_PLATFORM = "offscreen"
+    & $venvPytest "tests/" "-v" "--tb=short"
+    if ($LASTEXITCODE -ne 0) { throw "smoke tests failed" }
+}
+finally {
+    if ($hadQtPlatform) {
+        $env:QT_QPA_PLATFORM = $previousQtPlatform
+    }
+    else {
+        Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+    }
+}
 
 if ($SetupOnly) {
     Write-Host "[demo-day] preflight complete (SetupOnly) - ready to demo"

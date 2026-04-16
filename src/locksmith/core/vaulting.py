@@ -157,10 +157,14 @@ class Vault(doing.DoDoer):
         # Notification toast doer
         self.toast_doer = NotificationToastDoer(vault=self)
 
-        self.turrent_doer = TurretDoer(self.hby,
-                                       self.rgy,
-                                       self.pluginSettings.locksmith_alias,
-                                       self.pluginSettings.plugin_identifier)
+        self.turrent_doer = None
+        try:
+            self.turrent_doer = TurretDoer(self.hby,
+                                           self.rgy,
+                                           self.pluginSettings.locksmith_alias,
+                                           self.pluginSettings.plugin_identifier)
+        except Exception as ex:
+            logger.warning(f"Turret disabled for this session: {ex}")
 
         # Assemble all doers
         self.doers = [
@@ -177,8 +181,9 @@ class Vault(doing.DoDoer):
             kva,
             self.mbx,
             self.toast_doer,
-            self.turrent_doer,
         ]
+        if self.turrent_doer is not None:
+            self.doers.append(self.turrent_doer)
         # Initialize DoDoer with always=True to keep running
         super(Vault, self).__init__(doers=self.doers, always=True)
 
@@ -219,7 +224,10 @@ class Vault(doing.DoDoer):
         settings = self.db.pluginSettings.get(keys=("default",))
         settings.plugin_identifier = plugin_identifier
         self.db.pluginSettings.pin(keys=("default",), val=settings)
-        self.turrent_doer.set_plugin_identifier(plugin_identifier)
+        if self.turrent_doer is not None:
+            self.turrent_doer.set_plugin_identifier(plugin_identifier)
+        else:
+            logger.warning("Plugin identifier updated but turret is disabled for this session")
 
 
 class NotificationToastDoer(doing.Doer):
