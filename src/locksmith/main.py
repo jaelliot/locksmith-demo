@@ -14,7 +14,7 @@ from keri import help
 from qasync import QEventLoop
 
 # This import is necessary for locating assets via shortened directory paths
-from locksmith import resources_rc
+from locksmith import resources_rc  # noqa: F401
 
 # Configure KERI ogler logging
 FORMAT = '%(asctime)s [%(name)s] %(levelname)-8s %(message)s'

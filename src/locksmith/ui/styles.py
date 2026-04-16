@@ -5,9 +5,12 @@ archie.ui.global module
 This module contains global setting for the Archimedes UI
 """
 import logging
+from pathlib import Path
 
 from PySide6.QtGui import QIcon, QFontDatabase
 from PySide6.QtWidgets import QApplication, QProxyStyle, QStyle
+
+from locksmith.ui import colors
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +26,6 @@ def get_monospace_font_family() -> str:
     """
     return MONOSPACE_FONT_FAMILY
 
-from locksmith.ui import colors
 
 # This is used to increase the size of menu item icons.
 class IconSizeProxyStyle(QProxyStyle):
@@ -42,7 +44,6 @@ def set_global_styles(app: QApplication):
     app.setApplicationName("Locksmith")
 
     # Load bundled Source Code Pro font using absolute path to avoid cwd issues
-    from pathlib import Path
     project_root = Path(__file__).parent.parent.parent.parent
     font_path = project_root / "assets" / "fonts" / "SourceCodePro-Regular.ttf"
 

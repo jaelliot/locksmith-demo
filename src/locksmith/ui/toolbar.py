@@ -289,8 +289,24 @@ class LocksmithToolbar(QToolBar):
         layout.addSpacing(3)
 
         # Create value label
-        value_widget = QLabel(value)
-        value_widget.setStyleSheet(f"font-size: 14px; color: {colors.TEXT_SECONDARY}; padding-left: 0px;")
+        env_var_by_label = {
+            "ROOT AID": "LOCKSMITH_ROOT_AID",
+            "ROOT OOBI": "LOCKSMITH_ROOT_OOBI",
+            "API AID": "LOCKSMITH_API_AID",
+            "API OOBI": "LOCKSMITH_API_OOBI",
+            "Registration URL": "LOCKSMITH_UNPROTECTED_URL",
+            "API URL": "LOCKSMITH_PROTECTED_URL",
+        }
+        displayed_value = (value or "").strip()
+        is_placeholder = False
+        if not displayed_value:
+            env_var = env_var_by_label.get(label)
+            displayed_value = f"Not configured (set {env_var})" if env_var else "Not configured"
+            is_placeholder = True
+
+        value_widget = QLabel(displayed_value)
+        value_color = colors.TEXT_MUTED if is_placeholder else colors.TEXT_SECONDARY
+        value_widget.setStyleSheet(f"font-size: 14px; color: {value_color}; padding-left: 0px;")
         value_widget.setWordWrap(True)
         value_widget.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(value_widget)

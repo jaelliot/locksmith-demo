@@ -11,6 +11,44 @@ This repo is meant to answer one question quickly: can someone clone one repo, r
 - Windows native PowerShell is the intended Windows lane.
 - Docker is useful for headless proof only, not GUI launch.
 
+## Cross-Platform Prerequisites
+
+### macOS
+
+- **Python 3.13** (install via Homebrew, `pyenv`, or `uv`)
+  ```bash
+  brew install python@3.13
+  # or
+  uv python install 3.13
+  ```
+- **Git**
+- A recent **Xcode Command Line Tools** (for native compilation of dependencies)
+  ```bash
+  xcode-select --install
+  ```
+
+### Linux (Ubuntu/Debian-based)
+
+- **Python 3.13**
+  ```bash
+  sudo apt update
+  sudo apt install python3.13 python3.13-venv python3.13-dev
+  ```
+- **Git** and build essentials
+  ```bash
+  sudo apt install git build-essential libssl-dev libffi-dev
+  ```
+
+### Windows
+
+- **Python 3.13 (x64)** from [python.org](https://www.python.org/downloads/) or `uv`
+  ```powershell
+  uv python install 3.13
+  ```
+- **Git for Windows**
+- **PowerShell 5.1 or later** (built-in on Windows 10/11)
+- **Microsoft Visual C++ Redistributable (x64)** (auto-downloaded by launcher if needed)
+
 ## Quick Start
 
 ### 1. Clone
@@ -61,16 +99,72 @@ PYTHON_BIN=python3.13 ./scripts/demo-day.sh
 .\scripts\demo-day.ps1 -PythonBin python3.13
 ```
 
-## What To Do In The App
+## Demo Walkthrough
 
-Once the GUI opens, the current useful demo path is:
+Once the GUI opens, follow this guided tour:
 
-1. Create or open a vault.
-2. Open Local Identifiers and add a local AID.
-3. Inspect Remote Identifiers, Group Identifiers, Credentials, and Settings to confirm the empty-state UI and vault configuration surfaces render correctly.
-4. Use Settings to confirm the vault is writable and the browser-plugin identifier surface is present.
+### 1. Vault Unlock (30 seconds)
 
-This repo currently proves local wallet bootstrap and UI navigation. It does not yet prove a full live credential issuance flow.
+- The app opens to the **Vault drawer** (left sidebar).
+- You will see "**Vault Jay**" or similar (name from local machine).
+- Click the **lock icon** to unlock the vault and enter the password you created (or press Enter if using default demo data).
+- Expected: Unlock succeeds, vault drawer expands to show **Settings**, **Identifiers**, **Credentials**, **Schemas**, **Notifications**.
+
+### 2. Local Identifiers (1 minute)
+
+- Click **Local Identifiers** in the left sidebar.
+- You will see an **empty state** with "NO LOCAL IDENTIFIERS" (first time setup).
+- Optionally, click **+ Add Identifier** to create a new local AID. This proves the creation flow works.
+- Expected: Form opens to let you name and configure a new identifier.
+
+### 3. View Remote and Group Identifiers (1 minute)
+
+- Click **Remote Identifiers**, expect empty state with "NO REMOTE IDENTIFIERS".
+- Click **Group Identifiers**, expect empty state with "NO GROUP IDENTIFIERS".
+- These surfaces validate that the UI correctly renders unpopulated data states.
+
+### 4. Credentials and Schemas (1 minute)
+
+- Click **Issued Credentials**, expect "NO ISSUED CREDENTIALS".
+- Click **Received Credentials**, expect "NO RECEIVED CREDENTIALS".
+- Click **Credential Schemas**, expect "NO CREDENTIAL SCHEMAS".
+- These are read-only views for the demo (live issuance requires external witness/schema infrastructure not included).
+
+### 5. Notifications (30 seconds)
+
+- Click **Notifications**.
+- You will see a **search bar** at the top. Notifications feature is not yet live in the demo; this is placeholder UI.
+- Expected: Search bar displays; no notifications listed (expected state).
+
+### 6. Configuration and Settings (1 minute)
+
+- Click **Settings** in the left sidebar.
+- Scroll to the bottom to see **Configuration** or open the **Configuration modal** if available.
+- Inspect the six configuration fields:
+  - **Root AID**
+  - **Root OOBI**
+  - **API AID**
+  - **API OOBI**
+  - **Registration URL**
+  - **API URL**
+- If these are empty, you will see: `"Not configured (set LOCKSMITH_ROOT_AID)"` etc. in **muted gray text**.
+- These fields can optionally be pre-populated via environment variables (see **Optional Presenter Pre-Population** below).
+
+### 7. Vault Settings (30 seconds)
+
+- Also under **Settings**, view the **Vault Settings** card:
+  - **Database Directory Base**: Shows where local vault data is stored (e.g., `/tmp/keri-locksmith-demo` or similar).
+  - **Key Salt**: A random value used to derive encryption keys for the vault.
+- This confirms the vault is writable and bootstrapped correctly.
+
+**What This Proves:**
+- ✅ Desktop app launches and initializes all UI subsystems.
+- ✅ Vault unlock (password) flow works.
+- ✅ Navigation and empty-state rendering work correctly.
+- ✅ Configuration surfaces are ready for live provider connection (with env var seeding).
+- ❌ **Not yet supported**: Live credential issuance (requires external witness, registry, schema resolver).
+
+**Total Time:** ~5 minutes for a complete walkthrough.
 
 ## Runtime Notes
 
@@ -95,9 +189,166 @@ RESET_DEMO_STATE=1 ./scripts/demo-day.sh
 .\scripts\demo-day.ps1 -ResetDemoState
 ```
 
+## Optional Presenter Pre-Population
+
+The Configuration modal reflects startup config values. If provider fields are empty,
+the UI now shows an explicit "Not configured" placeholder with the expected env var.
+
+If you want those fields populated during a demo, export values before launch.
+
+- macOS/Linux:
+
+```bash
+export LOCKSMITH_ROOT_AID="<root-aid>"
+export LOCKSMITH_API_AID="<api-aid>"
+export LOCKSMITH_ROOT_OOBI="<root-oobi-url>"
+export LOCKSMITH_API_OOBI="<api-oobi-url>"
+export LOCKSMITH_UNPROTECTED_URL="<registration-url>"
+export LOCKSMITH_PROTECTED_URL="<api-url>"
+PYTHON_BIN=python3.13 ./scripts/demo-day.sh
+```
+
+- Windows PowerShell:
+
+```powershell
+$env:LOCKSMITH_ROOT_AID = "<root-aid>"
+$env:LOCKSMITH_API_AID = "<api-aid>"
+$env:LOCKSMITH_ROOT_OOBI = "<root-oobi-url>"
+$env:LOCKSMITH_API_OOBI = "<api-oobi-url>"
+$env:LOCKSMITH_UNPROTECTED_URL = "<registration-url>"
+$env:LOCKSMITH_PROTECTED_URL = "<api-url>"
+.\scripts\demo-day.ps1 -PythonBin python3.13
+```
+
+### Configuration Variable Reference
+
+| Environment Variable | UI Field | Purpose | Example |
+|---|---|---|---|
+| `LOCKSMITH_ROOT_AID` | Root AID | KERI Autonomic Identifier (AID) of the root provider | `EB0a3Zm8yKHjXHHPzFcYQ0N_7Dxq2ZoFXnwJgfKoXo0Q` |
+| `LOCKSMITH_ROOT_OOBI` | Root OOBI | Out-of-Band Introduction URL for the root provider | `http://localhost:8080/oobi` |
+| `LOCKSMITH_API_AID` | API AID | AID used for API authentication / protected routes | `EB0a3Zm8yKHjXHHPzFcYQ0N_7Dxq2ZoFXnwJgfKoXo0Q` |
+| `LOCKSMITH_API_OOBI` | API OOBI | OOBI URL for the API provider | `http://localhost:8080/api/oobi` |
+| `LOCKSMITH_UNPROTECTED_URL` | Registration URL | Base URL for public registration endpoints | `http://localhost:8080/register` |
+| `LOCKSMITH_PROTECTED_URL` | API URL | Base URL for authenticated API endpoints | `http://localhost:8080/api` |
+
+**For Demo Use:** If you are using a live witness or schema registry on your local network, populate these with real values from your infrastructure. Otherwise, leave them empty (the "Not configured" placeholder is correct and expected).
+
+## Sample Demo Configuration (For Follow-Along Audiences)
+
+If attendees want to clone this repo and follow along on their own machines (Windows, macOS, or Linux), they can use these steps:
+
+### On Your Machine (Presenter)
+
+1. **Clone the repo:**
+   ```bash
+   git clone https://github.com/jaelliot/locksmith-demo.git
+   cd locksmith-demo
+   ```
+
+2. **Run preflight** to validate your platform:
+   ```bash
+   # macOS/Linux
+   PYTHON_BIN=python3.13 SETUP_ONLY=1 ./scripts/demo-day.sh
+   
+   # Windows PowerShell
+   .\scripts\demo-day.ps1 -PythonBin python3.13 -SetupOnly
+   ```
+
+3. **Launch the app:**
+   ```bash
+   # macOS/Linux
+   PYTHON_BIN=python3.13 ./scripts/demo-day.sh
+   
+   # Windows PowerShell
+   .\scripts\demo-day.ps1 -PythonBin python3.13
+   ```
+
+4. **Follow the Demo Walkthrough** (see section above).
+
+### Optional: Pre-Populate Configuration for Rehearsal
+
+If you want to screenshots or video with configuration fields populated, use the environment variables before launch:
+
+**Shell (macOS/Linux):**
+```bash
+export LOCKSMITH_ROOT_AID="EB0a3Zm8yKHjXHHPzFcYQ0N_7Dxq2ZoFXnwJgfKoXo0Q"
+export LOCKSMITH_ROOT_OOBI="http://localhost:8080/oobi"
+export LOCKSMITH_API_AID="EB0a3Zm8yKHjXHHPzFcYQ0N_7Dxq2ZoFXnwJgfKoXo0Q"
+export LOCKSMITH_API_OOBI="http://localhost:8080/api/oobi"
+export LOCKSMITH_UNPROTECTED_URL="http://localhost:8080/register"
+export LOCKSMITH_PROTECTED_URL="http://localhost:8080/api"
+PYTHON_BIN=python3.13 ./scripts/demo-day.sh
+```
+
+**PowerShell (Windows):**
+```powershell
+$env:LOCKSMITH_ROOT_AID = "EB0a3Zm8yKHjXHHPzFcYQ0N_7Dxq2ZoFXnwJgfKoXo0Q"
+$env:LOCKSMITH_ROOT_OOBI = "http://localhost:8080/oobi"
+$env:LOCKSMITH_API_AID = "EB0a3Zm8yKHjXHHPzFcYQ0N_7Dxq2ZoFXnwJgfKoXo0Q"
+$env:LOCKSMITH_API_OOBI = "http://localhost:8080/api/oobi"
+$env:LOCKSMITH_UNPROTECTED_URL = "http://localhost:8080/register"
+$env:LOCKSMITH_PROTECTED_URL = "http://localhost:8080/api"
+.\scripts\demo-day.ps1 -PythonBin python3.13
+```
+
+> **Note:** These are example values. Replace with real values from your witness/registry infrastructure if you have one running. For a "clean slate" demo, leaving the fields "Not configured" is perfectly fine—it shows a realistic default state.
+
+## Demo Day Rehearsal Checklist
+
+Run through this 10-minute checklist **on presentation day** (before you demo):
+
+- [ ] **1. Fresh setup** (5 min): Close the app. Run `RESET_DEMO_STATE=1 ./scripts/demo-day.sh` (macOS/Linux) or `.\scripts\demo-day.ps1 -ResetDemoState` (Windows) to ensure clean state.
+- [ ] **2. App launch** (1 min): Verify the GUI opens without errors.
+- [ ] **3. Vault unlock** (1 min): Click unlock, enter password (or press Enter for default), confirm vault opens.
+- [ ] **4. Walkthrough flow** (3 min): Walk through sections in order: Local ID → Remote ID → Group ID → Credentials → Schemas → Notifications → Settings → Configuration.
+- [ ] **5. Verify expected states** (1 min): Confirm all list views show empty state UI (e.g., "NO LOCAL IDENTIFIERS").
+- [ ] **6. Configuration modal** (1 min): Open Settings → Configuration. Verify fields display correctly (populated or "Not configured" placeholders).
+- [ ] **7. Notes app open** (optional): Have this README or a speaker notes document open on a second monitor for reference.
+- [ ] **8. Backup**: Optional—take a 30-second screen recording of the happy-path for fallback if live demo encounters issues.
+
+**Total Time:** ~10 minutes.
+
+After this checklist passes, you are ready to demo live.
+
 ## Troubleshooting
 
-### Wrong Python version
+### Platform-Specific Setup Issues
+
+#### macOS
+
+- **"command not found: python3.13"**: Install Python 3.13 via Homebrew or `uv`:
+  ```bash
+  brew install python@3.13
+  # or
+  uv python install 3.13
+  # then verify
+  python3.13 --version
+  ```
+- **Xcode Command Line Tools missing**: Run `xcode-select --install` and retry.
+- **Vault unlock fails**: Try rerunning with `RESET_DEMO_STATE=1` to clear any corrupted state.
+
+#### Linux
+
+- **"python3.13: command not found"**: Install via your package manager:
+  ```bash
+  sudo apt install python3.13 python3.13-venv python3.13-dev
+  ```
+- **libssl/libffi build failures**: Install development headers:
+  ```bash
+  sudo apt install libssl-dev libffi-dev build-essential
+  ```
+- **Window manager issues over remote SSH**: Use X forwarding (`ssh -X`) or prefer running presentation locally.
+
+#### Windows
+
+- **PowerShell execution policy blocks script**: Run once to unblock:
+  ```powershell
+  Set-ExecutionPolicy -Scope Process Bypass
+  ```
+- **"python3.13 is not recognized"**: Install Python 3.13 (x64) from [python.org](https://www.python.org/downloads/) and ensure the installer checks "Add python.exe to PATH".
+- **libsodium.dll not found**: The launcher now auto-downloads libsodium. If issues persist, install the Microsoft Visual C++ Redistributable (x64).
+
+### General Troubleshooting
 
 Use Python 3.13 explicitly:
 

@@ -81,6 +81,16 @@ Thumbs.db
 keri-scripts/
 .keri/
 
+# If local scripts are run from repo-scoped paths, these directories may appear.
+keri/db/
+keri/ks/
+keri/cf/
+keri/rt/
+
+# Temporary libsodium download/extract artifacts from PowerShell bootstrap.
+libsodium_download.zip
+libsodium_temp/
+
 # ── Secrets / environment ─────────────────────────────────────────────────────
 .env
 .env.*
