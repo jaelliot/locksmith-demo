@@ -15,6 +15,70 @@ if ([string]::IsNullOrWhiteSpace($locksmithBase)) {
 }
 $env:LOCKSMITH_BASE = $locksmithBase
 
+function Remove-DemoDayDirectory {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    try {
+        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+        return
+    }
+    catch {
+        # Remove-Item often fails on \\wsl.localhost\ or \\wsl$\ UNC paths (e.g. "directory is not empty").
+    }
+
+    # Prefer Linux-side delete when the repo is the WSL filesystem exposed over UNC (Remove-Item is unreliable there).
+    $wslDistro = $null
+    $wslLinuxPath = $null
+    $wslPrefix = '\\wsl.localhost' + [char]92
+    if ($Path.StartsWith($wslPrefix)) {
+        $afterPrefix = $Path.Substring($wslPrefix.Length)
+        $idx = $afterPrefix.IndexOf('\')
+        if ($idx -gt 0) {
+            $wslDistro = $afterPrefix.Substring(0, $idx)
+            $wslLinuxPath = "/" + ($afterPrefix.Substring($idx + 1) -creplace '\\', '/')
+        }
+    }
+    elseif ($Path -like '\\wsl$\*') {
+        $afterPrefix = $Path.Substring(7)
+        $idx = $afterPrefix.IndexOf('\')
+        if ($idx -gt 0) {
+            $wslDistro = $afterPrefix.Substring(0, $idx)
+            $wslLinuxPath = "/" + ($afterPrefix.Substring($idx + 1) -creplace '\\', '/')
+        }
+    }
+    if ($null -ne $wslDistro -and -not [string]::IsNullOrWhiteSpace($wslLinuxPath)) {
+        Write-Host "[demo-day] removing directory via WSL ($wslDistro): $wslLinuxPath"
+        & wsl.exe -d $wslDistro -- rm -rf -- $wslLinuxPath
+        if (-not (Test-Path -LiteralPath $Path)) {
+            return
+        }
+    }
+
+    $qPath = '"' + ($Path -replace '"', '""') + '"'
+    $null = & cmd.exe /c "rmdir /s /q $qPath" 2>&1
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    try {
+        Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue |
+            Sort-Object { $_.FullName.Length } -Descending |
+            ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -Recurse -ErrorAction SilentlyContinue }
+        Remove-Item -LiteralPath $Path -Force -Recurse -ErrorAction Stop
+        return
+    }
+    catch {
+    }
+
+    if (Test-Path -LiteralPath $Path) {
+        throw "[demo-day] ERROR: could not remove directory: $Path"
+    }
+}
+
 function Install-WindowsLibsodiumIfNeeded {
     param(
         [switch]$ForceRefresh
@@ -450,7 +514,7 @@ elseif (-not (Test-Path $venvPython)) {
     else {
         Write-Host "[demo-day] existing .venv is missing Scripts\python.exe; recreating virtual environment..."
     }
-    Remove-Item -Recurse -Force $venvDir
+    Remove-DemoDayDirectory -Path $venvDir
     Invoke-Python -m venv $venvDir
 }
 
@@ -461,7 +525,7 @@ if (-not (Test-Path $venvPython)) {
 $venvVer = (& $venvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
 if ($venvVer -ne "3.13") {
     Write-Host "[demo-day] existing .venv is Python $venvVer; recreating with Python 3.13"
-    Remove-Item -Recurse -Force $venvDir
+    Remove-DemoDayDirectory -Path $venvDir
     Invoke-Python -m venv $venvDir
 }
 
