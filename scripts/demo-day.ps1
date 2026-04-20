@@ -44,6 +44,42 @@ function Format-DemoDayElapsed {
     return ('{0:00}:{1:00}' -f [int]$Elapsed.TotalMinutes, $Elapsed.Seconds)
 }
 
+function Join-DemoDayArguments {
+    param([string[]]$ArgumentList = @())
+
+    if (($null -eq $ArgumentList) -or ($ArgumentList.Count -eq 0)) {
+        return ""
+    }
+
+    return [string]::Join(' ', ($ArgumentList | ForEach-Object {
+        if ($_ -match '[\s"]') {
+            '"' + ($_ -replace '"', '\"') + '"'
+        }
+        else {
+            $_
+        }
+    }))
+}
+
+function Start-DemoDayProcess {
+    param(
+        [Parameter(Mandatory)][string]$FilePath,
+        [string[]]$ArgumentList = @()
+    )
+
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $FilePath
+    $startInfo.Arguments = Join-DemoDayArguments -ArgumentList $ArgumentList
+    $startInfo.WorkingDirectory = (Get-Location).Path
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    $null = $process.Start()
+    return $process
+}
+
 function Invoke-ExternalCommandWithHeartbeat {
     param(
         [Parameter(Mandatory)][string]$Label,
@@ -53,7 +89,7 @@ function Invoke-ExternalCommandWithHeartbeat {
     )
 
     $startedAt = Get-Date
-    $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -NoNewWindow -PassThru -ErrorAction Stop
+    $process = Start-DemoDayProcess -FilePath $FilePath -ArgumentList $ArgumentList
 
     try {
         while (-not $process.WaitForExit($HeartbeatSeconds * 1000)) {
@@ -110,7 +146,7 @@ function Remove-DemoDayDirectoryWithHeartbeat {
     if ($null -ne $wslDistro -and -not [string]::IsNullOrWhiteSpace($wslLinuxPath)) {
         Write-Host "[demo-day] $Label via WSL ($wslDistro): $wslLinuxPath"
         $startedAt = Get-Date
-        $process = Start-Process -FilePath "wsl.exe" -ArgumentList @("-d", $wslDistro, "--", "rm", "-rf", "--", $wslLinuxPath) -NoNewWindow -PassThru -ErrorAction Stop
+        $process = Start-DemoDayProcess -FilePath "wsl.exe" -ArgumentList @("-d", $wslDistro, "--", "rm", "-rf", "--", $wslLinuxPath)
 
         try {
             while (-not $process.WaitForExit($HeartbeatSeconds * 1000)) {
