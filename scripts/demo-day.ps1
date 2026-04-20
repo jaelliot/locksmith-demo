@@ -8,6 +8,11 @@ Param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+# Resolve-Path often returns \\?\UNC\server\share\... — normalize so Join-Path .venv and WSL rm detection stay consistent.
+$uncExtendedPrefix = '\\?\UNC\'
+if ($repoRoot.StartsWith($uncExtendedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    $repoRoot = '\\' + $repoRoot.Substring($uncExtendedPrefix.Length)
+}
 $autoInstallUv = -not $NoAutoInstallUv
 $locksmithBase = $env:LOCKSMITH_BASE
 if ([string]::IsNullOrWhiteSpace($locksmithBase)) {
@@ -516,6 +521,12 @@ $venvDir = Join-Path $repoRoot ".venv"
 $venvPython = Join-Path $venvDir "Scripts\python.exe"
 $venvPytest = Join-Path $venvDir "Scripts\pytest.exe"
 $venvRcc = Join-Path $venvDir "Scripts\pyside6-rcc.exe"
+
+# Preflight: always drop an existing .venv so Windows setup is not fighting a Linux/WSL or broken tree (UNC-safe removal).
+if ($SetupOnly -and (Test-Path -LiteralPath $venvDir)) {
+    Write-Host "[demo-day] SetupOnly: removing existing .venv for a clean preflight..."
+    Remove-DemoDayDirectory -Path $venvDir
+}
 
 if (-not (Test-Path $venvDir)) {
     Write-Host "[demo-day] creating virtual environment"
