@@ -18,6 +18,12 @@ $env:LOCKSMITH_BASE = $locksmithBase
 function Remove-DemoDayDirectory {
     param([Parameter(Mandatory)][string]$Path)
 
+    # Resolve-Path often returns extended UNC (\\?\UNC\server\share\...). WSL detection expects \\server\share\...
+    $uncExtendedPrefix = '\\?\UNC\'
+    if ($Path.StartsWith($uncExtendedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $Path = '\\' + $Path.Substring($uncExtendedPrefix.Length)
+    }
+
     if (-not (Test-Path -LiteralPath $Path)) {
         return
     }
@@ -34,7 +40,7 @@ function Remove-DemoDayDirectory {
     $wslDistro = $null
     $wslLinuxPath = $null
     $wslPrefix = '\\wsl.localhost' + [char]92
-    if ($Path.StartsWith($wslPrefix)) {
+    if ($Path.StartsWith($wslPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
         $afterPrefix = $Path.Substring($wslPrefix.Length)
         $idx = $afterPrefix.IndexOf('\')
         if ($idx -gt 0) {
@@ -58,10 +64,20 @@ function Remove-DemoDayDirectory {
         }
     }
 
-    $qPath = '"' + ($Path -replace '"', '""') + '"'
-    $null = & cmd.exe /c "rmdir /s /q $qPath" 2>&1
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return
+    # cmd.exe does not support UNC paths well and stderr becomes a terminating NativeCommandError under $ErrorActionPreference = Stop.
+    if (-not ($Path.StartsWith('\\'))) {
+        $qPath = '"' + ($Path -replace '"', '""') + '"'
+        $prevEa = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'SilentlyContinue'
+            $null = & cmd.exe /c "rmdir /s /q $qPath" 2>&1
+        }
+        finally {
+            $ErrorActionPreference = $prevEa
+        }
+        if (-not (Test-Path -LiteralPath $Path)) {
+            return
+        }
     }
 
     try {
