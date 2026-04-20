@@ -38,6 +38,108 @@ function Normalize-DemoDayPath {
     return $Path
 }
 
+function Format-DemoDayElapsed {
+    param([Parameter(Mandatory)][TimeSpan]$Elapsed)
+
+    return ('{0:00}:{1:00}' -f [int]$Elapsed.TotalMinutes, $Elapsed.Seconds)
+}
+
+function Invoke-ExternalCommandWithHeartbeat {
+    param(
+        [Parameter(Mandatory)][string]$Label,
+        [Parameter(Mandatory)][string]$FilePath,
+        [string[]]$ArgumentList = @(),
+        [int]$HeartbeatSeconds = 8
+    )
+
+    $startedAt = Get-Date
+    $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -NoNewWindow -PassThru -ErrorAction Stop
+
+    try {
+        while (-not $process.WaitForExit($HeartbeatSeconds * 1000)) {
+            $elapsed = (Get-Date) - $startedAt
+            Write-Host "[demo-day] $Label still running... $(Format-DemoDayElapsed -Elapsed $elapsed) elapsed"
+        }
+    }
+    finally {
+        if (($null -ne $process) -and (-not $process.HasExited)) {
+            $process.WaitForExit()
+        }
+    }
+
+    if ($process.ExitCode -ne 0) {
+        throw "[demo-day] ERROR: $Label failed (exit code $($process.ExitCode))"
+    }
+
+    $elapsed = (Get-Date) - $startedAt
+    Write-Host "[demo-day] $Label finished in $(Format-DemoDayElapsed -Elapsed $elapsed)"
+}
+
+function Remove-DemoDayDirectoryWithHeartbeat {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Label,
+        [int]$HeartbeatSeconds = 8
+    )
+
+    $Path = Normalize-DemoDayPath -Path $Path
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    $wslDistro = $null
+    $wslLinuxPath = $null
+    $wslPrefix = '\\wsl.localhost' + [char]92
+    if ($Path.StartsWith($wslPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $afterPrefix = $Path.Substring($wslPrefix.Length)
+        $idx = $afterPrefix.IndexOf('\')
+        if ($idx -gt 0) {
+            $wslDistro = $afterPrefix.Substring(0, $idx)
+            $wslLinuxPath = "/" + ($afterPrefix.Substring($idx + 1) -creplace '\\', '/')
+        }
+    }
+    elseif ($Path -like '\\wsl$\*') {
+        $afterPrefix = $Path.Substring(7)
+        $idx = $afterPrefix.IndexOf('\')
+        if ($idx -gt 0) {
+            $wslDistro = $afterPrefix.Substring(0, $idx)
+            $wslLinuxPath = "/" + ($afterPrefix.Substring($idx + 1) -creplace '\\', '/')
+        }
+    }
+
+    if ($null -ne $wslDistro -and -not [string]::IsNullOrWhiteSpace($wslLinuxPath)) {
+        Write-Host "[demo-day] $Label via WSL ($wslDistro): $wslLinuxPath"
+        $startedAt = Get-Date
+        $process = Start-Process -FilePath "wsl.exe" -ArgumentList @("-d", $wslDistro, "--", "rm", "-rf", "--", $wslLinuxPath) -NoNewWindow -PassThru -ErrorAction Stop
+
+        try {
+            while (-not $process.WaitForExit($HeartbeatSeconds * 1000)) {
+                $elapsed = (Get-Date) - $startedAt
+                Write-Host "[demo-day] $Label still running... $(Format-DemoDayElapsed -Elapsed $elapsed) elapsed"
+            }
+        }
+        finally {
+            if (($null -ne $process) -and (-not $process.HasExited)) {
+                $process.WaitForExit()
+            }
+        }
+
+        if (($process.ExitCode -eq 0) -and (-not (Test-Path -LiteralPath $Path))) {
+            $elapsed = (Get-Date) - $startedAt
+            Write-Host "[demo-day] $Label finished in $(Format-DemoDayElapsed -Elapsed $elapsed)"
+            return
+        }
+
+        Write-Host "[demo-day] $Label needs fallback cleanup"
+    }
+
+    $startedAt = Get-Date
+    Write-Host "[demo-day] $Label using PowerShell cleanup fallback"
+    Remove-DemoDayDirectory -Path $Path
+    $elapsed = (Get-Date) - $startedAt
+    Write-Host "[demo-day] $Label finished in $(Format-DemoDayElapsed -Elapsed $elapsed)"
+}
+
 function Get-WslRepoContext {
     param([Parameter(Mandatory)][string]$Path)
 
@@ -660,7 +762,7 @@ $venvRcc = Join-Path $venvDir "Scripts\pyside6-rcc.exe"
 # Preflight: always drop an existing .venv so Windows setup is not fighting a Linux/WSL or broken tree (UNC-safe removal).
 if ($SetupOnly -and (Test-Path -LiteralPath $venvDir)) {
     Write-Host "[demo-day] SetupOnly: removing existing .venv for a clean preflight..."
-    Remove-DemoDayDirectory -Path $venvDir
+    Remove-DemoDayDirectoryWithHeartbeat -Path $venvDir -Label "virtual environment cleanup"
 }
 
 if (-not (Test-Path $venvDir)) {
@@ -676,7 +778,7 @@ elseif (-not (Test-Path $venvPython)) {
     else {
         Write-Host "[demo-day] existing .venv is missing Scripts\python.exe; recreating virtual environment..."
     }
-    Remove-DemoDayDirectory -Path $venvDir
+    Remove-DemoDayDirectoryWithHeartbeat -Path $venvDir -Label "virtual environment cleanup"
     Invoke-Python -m venv $venvDir
 }
 
@@ -687,7 +789,7 @@ if (-not (Test-Path $venvPython)) {
 $venvVer = (& $venvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
 if ($venvVer -ne "3.13") {
     Write-Host "[demo-day] existing .venv is Python $venvVer; recreating with Python 3.13"
-    Remove-DemoDayDirectory -Path $venvDir
+    Remove-DemoDayDirectoryWithHeartbeat -Path $venvDir -Label "virtual environment cleanup"
     Invoke-Python -m venv $venvDir
 }
 
@@ -774,16 +876,16 @@ if (-not $pipReady) {
     }
 }
 
-& $venvPython -m pip install --upgrade pip --quiet
-if ($LASTEXITCODE -ne 0) { throw "pip upgrade failed" }
-& $venvPython -m pip install -e ".[dev]" --quiet
-if ($LASTEXITCODE -ne 0) { throw "dependency install failed" }
+Write-Host "[demo-day] upgrading pip"
+Invoke-ExternalCommandWithHeartbeat -Label "pip upgrade" -FilePath $venvPython -ArgumentList @("-m", "pip", "install", "--upgrade", "pip", "--quiet")
+Write-Host "[demo-day] installing project dependencies"
+Invoke-ExternalCommandWithHeartbeat -Label "dependency install" -FilePath $venvPython -ArgumentList @("-m", "pip", "install", "-e", ".[dev]", "--quiet")
 
 Write-Host "[demo-day] refreshing Qt resources"
-& $venvPython ".\scripts\generate_qrc.py"
-if ($LASTEXITCODE -ne 0) { throw "generate_qrc.py failed" }
-& $venvRcc "resources.qrc" "-o" "resources_rc.py"
-if ($LASTEXITCODE -ne 0) { throw "pyside6-rcc failed" }
+Write-Host "[demo-day] generating resources.qrc"
+Invoke-ExternalCommandWithHeartbeat -Label "resource manifest generation" -FilePath $venvPython -ArgumentList @(".\scripts\generate_qrc.py")
+Write-Host "[demo-day] compiling Qt resource module"
+Invoke-ExternalCommandWithHeartbeat -Label "Qt resource compilation" -FilePath $venvRcc -ArgumentList @("resources.qrc", "-o", "resources_rc.py")
 Move-Item -Force "resources_rc.py" ".\src\locksmith\resources_rc.py"
 
 Write-Host "[demo-day] running smoke tests"

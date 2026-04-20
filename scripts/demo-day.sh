@@ -17,6 +17,72 @@ SETUP_ONLY="${SETUP_ONLY:-0}"
 AUTO_INSTALL_UV="${AUTO_INSTALL_UV:-1}"
 LOCKSMITH_BASE="${LOCKSMITH_BASE:-locksmith-demo}"
 RESET_DEMO_STATE="${RESET_DEMO_STATE:-0}"
+HEARTBEAT_SECONDS="${HEARTBEAT_SECONDS:-8}"
+
+log() {
+  echo "[demo-day] $*"
+}
+
+format_elapsed() {
+  local total_seconds="$1"
+  printf '%02d:%02d' "$((total_seconds / 60))" "$((total_seconds % 60))"
+}
+
+run_with_heartbeat() {
+  local label="$1"
+  shift
+  local started_at="${SECONDS}"
+
+  "$@" &
+  local pid=$!
+
+  while kill -0 "${pid}" 2>/dev/null; do
+    sleep "${HEARTBEAT_SECONDS}"
+    if kill -0 "${pid}" 2>/dev/null; then
+      local elapsed="$((SECONDS - started_at))"
+      log "${label} still running... $(format_elapsed "${elapsed}") elapsed"
+    fi
+  done
+
+  wait "${pid}"
+  local exit_code=$?
+  if [[ "${exit_code}" != "0" ]]; then
+    return "${exit_code}"
+  fi
+
+  local elapsed="$((SECONDS - started_at))"
+  log "${label} finished in $(format_elapsed "${elapsed}")"
+}
+
+remove_dir_with_heartbeat() {
+  local label="$1"
+  local target="$2"
+  local started_at="${SECONDS}"
+
+  if [[ ! -e "${target}" ]]; then
+    return 0
+  fi
+
+  rm -rf -- "${target}" &
+  local pid=$!
+
+  while kill -0 "${pid}" 2>/dev/null; do
+    sleep "${HEARTBEAT_SECONDS}"
+    if kill -0 "${pid}" 2>/dev/null; then
+      local elapsed="$((SECONDS - started_at))"
+      log "${label} still running... $(format_elapsed "${elapsed}") elapsed"
+    fi
+  done
+
+  wait "${pid}"
+  local exit_code=$?
+  if [[ "${exit_code}" != "0" ]]; then
+    return "${exit_code}"
+  fi
+
+  local elapsed="$((SECONDS - started_at))"
+  log "${label} finished in $(format_elapsed "${elapsed}")"
+}
 
 install_uv_if_needed() {
   if command -v uv >/dev/null 2>&1; then
@@ -86,11 +152,11 @@ if [[ "${PY_VER}" != "3.13" ]]; then
   exit 1
 fi
 
-echo "[demo-day] using ${PYTHON_BIN} (${PY_VER})"
+log "using ${PYTHON_BIN} (${PY_VER})"
 cd "${REPO_ROOT}"
 
 export LOCKSMITH_BASE
-echo "[demo-day] using LOCKSMITH_BASE=${LOCKSMITH_BASE}"
+log "using LOCKSMITH_BASE=${LOCKSMITH_BASE}"
 
 if [[ "${RESET_DEMO_STATE}" == "1" ]]; then
   ./scripts/reset-demo-state.sh
@@ -105,34 +171,39 @@ fi
 VENV_VER="$(.venv/bin/python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 if [[ "${VENV_VER}" != "3.13" ]]; then
   echo "[demo-day] existing .venv is Python ${VENV_VER}; recreating with ${PYTHON_BIN}"
-  rm -rf .venv
+  log "removing existing virtual environment"
+  remove_dir_with_heartbeat "virtual environment cleanup" .venv
   eval "${PYTHON_BIN}" -m venv .venv
 fi
 
 # ── Install ───────────────────────────────────────────────────────────────────
-echo "[demo-day] installing dependencies (editable + dev extras)"
+log "installing dependencies (editable + dev extras)"
 .venv/bin/python -m pip --version >/dev/null 2>&1 || {
-  echo "[demo-day] pip missing in .venv; bootstrapping with ensurepip"
+  log "pip missing in .venv; bootstrapping with ensurepip"
   .venv/bin/python -m ensurepip --upgrade
 }
-.venv/bin/python -m pip install --upgrade pip --quiet
-.venv/bin/python -m pip install -e ".[dev]" --quiet
+log "upgrading pip"
+run_with_heartbeat "pip upgrade" .venv/bin/python -m pip install --upgrade pip --quiet
+log "installing project dependencies"
+run_with_heartbeat "dependency install" .venv/bin/python -m pip install -e ".[dev]" --quiet
 
 # ── Qt resources ─────────────────────────────────────────────────────────────
-echo "[demo-day] refreshing Qt resources"
-.venv/bin/python ./scripts/generate_qrc.py
-.venv/bin/pyside6-rcc resources.qrc -o resources_rc.py
+log "refreshing Qt resources"
+log "generating resources.qrc"
+run_with_heartbeat "resource manifest generation" .venv/bin/python ./scripts/generate_qrc.py
+log "compiling Qt resource module"
+run_with_heartbeat "Qt resource compilation" .venv/bin/pyside6-rcc resources.qrc -o resources_rc.py
 mv resources_rc.py ./src/locksmith/resources_rc.py
 
 # ── Smoke tests ───────────────────────────────────────────────────────────────
-echo "[demo-day] running smoke tests"
+log "running smoke tests"
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -v --tb=short
 
 if [[ "${SETUP_ONLY}" == "1" ]]; then
-  echo "[demo-day] preflight complete (SETUP_ONLY=1) — ready to demo"
+  log "preflight complete (SETUP_ONLY=1) — ready to demo"
   exit 0
 fi
 
 # ── Launch ────────────────────────────────────────────────────────────────────
-echo "[demo-day] launching LockSmith"
+log "launching LockSmith"
 exec .venv/bin/python ./src/locksmith/main.py
