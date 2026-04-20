@@ -12,6 +12,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
 LOCKSMITH_BASE="${LOCKSMITH_BASE:-locksmith-demo}"
+LOCKSMITH_EXTRA_RESET_ROOTS="${LOCKSMITH_EXTRA_RESET_ROOTS:-}"
 # Trim leading/trailing whitespace (bash parameter expansion)
 LOCKSMITH_BASE="${LOCKSMITH_BASE#"${LOCKSMITH_BASE%%[![:space:]]*}"}"
 LOCKSMITH_BASE="${LOCKSMITH_BASE%"${LOCKSMITH_BASE##*[![:space:]]}"}"
@@ -28,6 +29,9 @@ add_reset_root_if_missing() {
   if [[ -z "${candidate}" ]]; then
     return 0
   fi
+  if [[ ! -e "${candidate}" ]]; then
+    return 0
+  fi
   for existing in "${RESET_ROOTS[@]:-}"; do
     if [[ "${existing}" == "${candidate}" ]]; then
       return 0
@@ -36,12 +40,28 @@ add_reset_root_if_missing() {
   RESET_ROOTS+=("${candidate}")
 }
 
+add_configured_reset_roots() {
+  local raw_roots="$1"
+  local candidate=""
+
+  if [[ -z "${raw_roots}" ]]; then
+    return 0
+  fi
+
+  while IFS= read -r candidate; do
+    candidate="${candidate#"${candidate%%[![:space:]]*}"}"
+    candidate="${candidate%"${candidate##*[![:space:]]}"}"
+    add_reset_root_if_missing "${candidate}"
+  done < <(printf '%s\n' "${raw_roots//;/$'\n'}")
+}
+
 collect_reset_roots() {
   RESET_ROOTS=()
   add_reset_root_if_missing "${HOME}/.keri"
   add_reset_root_if_missing "/usr/local/var/keri"
   add_reset_root_if_missing "/opt/homebrew/var/keri"
   add_reset_root_if_missing "/var/keri"
+  add_configured_reset_roots "${LOCKSMITH_EXTRA_RESET_ROOTS}"
 }
 
 removed=0
@@ -51,6 +71,12 @@ failed=0
 echo "[reset-demo-state] clearing demo state for base '${LOCKSMITH_BASE}'"
 collect_reset_roots
 stores=(db ks cf rt reg mbx not locksmith)
+
+if [[ "${#RESET_ROOTS[@]}" == "0" ]]; then
+  echo "[reset-demo-state] no existing demo state roots found"
+  echo "[reset-demo-state] reset summary: removed=0 missing=0 failed=0"
+  exit 0
+fi
 
 echo "[reset-demo-state] reset roots: ${RESET_ROOTS[*]}"
 

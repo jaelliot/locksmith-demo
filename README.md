@@ -75,7 +75,7 @@ PYTHON_BIN=python3.13 SETUP_ONLY=1 ./scripts/demo-day.sh
 scripts\demo-day.cmd -SetupOnly
 ```
 
-If you prefer to run [`scripts/demo-day.ps1`](scripts/demo-day.ps1) directly, your session must allow local scripts (for example `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` once per session), or use `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-day.ps1 -SetupOnly`.
+If you launch from a `\\wsl.localhost\...` path, `scripts\demo-day.cmd` may still show one `cmd.exe` UNC warning before continuing. That message comes from `cmd.exe` itself before the wrapper starts. If you want a clean Windows launch from a UNC-backed repo, invoke [`scripts/demo-day.ps1`](scripts/demo-day.ps1) directly with `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-day.ps1 -SetupOnly`.
 
 - Docker headless
 
@@ -105,6 +105,19 @@ scripts\demo-day.cmd
 ```
 
 Same as preflight: you can use [`scripts/demo-day.ps1`](scripts/demo-day.ps1) directly if your execution policy allows it, or invoke it with `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-day.ps1`.
+
+## Participant Command Cheat Sheet
+
+Use this section if you just need the right command for your machine during the conference.
+
+| Task | macOS/Linux | Windows |
+|--------|----------------|----------------|
+| Verify setup only | `PYTHON_BIN=python3.13 SETUP_ONLY=1 ./scripts/demo-day.sh` | `scripts\demo-day.cmd -SetupOnly` |
+| Launch app | `PYTHON_BIN=python3.13 ./scripts/demo-day.sh` | `scripts\demo-day.cmd` |
+| Preview cleanup | `make locksmith-clean-preview` | `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\cleanup-demo.ps1 -WhatIf` |
+| Clean demo files + state | `make locksmith-clean` | `scripts\cleanup-demo.cmd` |
+
+If you are on Windows in a `\\wsl.localhost\...` checkout, the `scripts\demo-day.cmd` and `scripts\cleanup-demo.cmd` wrappers may still show one `cmd.exe` UNC warning before continuing. That is expected.
 
 ## Conference breakout: follow-along
 
@@ -220,6 +233,8 @@ Optional variables: `LOCKSMITH_BASE` (default `locksmith-demo`), `PYTHON_BIN` (e
 | `make locksmith-up` | Install deps, refresh Qt resources, run smoke tests, launch the GUI (wraps `scripts/demo-day.sh`) |
 | `make locksmith-down` | Best-effort stop of a dev-launched LockSmith (`pkill` matches `.../src/locksmith/main.py`) |
 | `make locksmith-reset-state` | Delete on-disk demo data for the current `LOCKSMITH_BASE` via [`scripts/reset-demo-state.sh`](scripts/reset-demo-state.sh) |
+| `make locksmith-clean` | Remove `.venv`, test/cache artifacts, temporary download folders, and reset current `LOCKSMITH_BASE` demo state via [`scripts/cleanup-demo.sh`](scripts/cleanup-demo.sh) |
+| `make locksmith-clean-preview` | Preview the cleanup plan without deleting anything (`DRY_RUN=1`) |
 | `make locksmith-verify` | Same bootstrap as `locksmith-up` but `SETUP_ONLY=1` (no GUI) — use after a reset to confirm tests pass |
 
 Examples:
@@ -227,9 +242,49 @@ Examples:
 ```bash
 make locksmith-down
 make locksmith-reset-state
+make locksmith-clean-preview
+make locksmith-clean
 make locksmith-verify
 make locksmith-up
 ```
+
+## Cleanup / Teardown
+
+Use the cleanup script when you want to reverse the local demo setup without manually hunting through files. It removes the local virtual environment, common test/cache artifacts, temporary libsodium download folders, and the current `LOCKSMITH_BASE` demo state. It leaves the cloned source tree intact.
+
+- macOS/Linux:
+
+```bash
+./scripts/cleanup-demo.sh
+```
+
+- macOS/Linux dry run:
+
+```bash
+DRY_RUN=1 ./scripts/cleanup-demo.sh
+```
+
+- macOS/Linux via Makefile:
+
+```bash
+make locksmith-clean-preview
+```
+
+- Windows:
+
+```bat
+scripts\cleanup-demo.cmd
+```
+
+- Windows PowerShell preview (same idea as `make locksmith-clean-preview`):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\cleanup-demo.ps1 -WhatIf
+```
+
+If you only want to keep on-disk demo state and remove the Python environment/caches, use `KEEP_DEMO_STATE=1 ./scripts/cleanup-demo.sh` on macOS/Linux or `-KeepDemoState` with [`scripts/cleanup-demo.ps1`](scripts/cleanup-demo.ps1) on Windows.
+
+If a workstation keeps KERI data under additional roots, append them with `LOCKSMITH_EXTRA_RESET_ROOTS`. Use a semicolon-separated list in both shells. Example on macOS/Linux: `LOCKSMITH_EXTRA_RESET_ROOTS="/srv/keri;/opt/demo-keri" ./scripts/reset-demo-state.sh`. Example in PowerShell: `$env:LOCKSMITH_EXTRA_RESET_ROOTS = 'C:\demo\keri;\\server\share\keri'` before running [`scripts/cleanup-demo.ps1`](scripts/cleanup-demo.ps1) or [`scripts/demo-day.ps1`](scripts/demo-day.ps1).
 
 ## Blank-Slate Demo State
 
@@ -237,7 +292,7 @@ If your vault drawer shows old vaults from previous runs, run the reset + verify
 
 **Default data scope:** If `LOCKSMITH_BASE` is not set in the environment, the app defaults to `locksmith-demo`, so the vault list only shows haberies under `~/.keri/db/locksmith-demo/` (not every top-level folder under `~/.keri/db/`). Older runs that wrote directly under `~/.keri/db/<name>/` without that segment can leave folders on disk; they will not appear in the drawer once scoped.
 
-Close LockSmith fully before reset (including any background terminal run). Use `make locksmith-down` or quit the app so files are not locked. Reset removes `LOCKSMITH_BASE`-scoped records from all known KERI roots for the current platform, including `~/.keri`, `/usr/local/var/keri`, `/opt/homebrew/var/keri`, `/var/keri`, and the `db`, `ks`, `cf`, `rt`, `reg`, `mbx`, `not`, and `locksmith` stores beneath them (see [`scripts/reset-demo-state.sh`](scripts/reset-demo-state.sh)).
+Close LockSmith fully before reset (including any background terminal run). Use `make locksmith-down` or quit the app so files are not locked. Reset removes `LOCKSMITH_BASE`-scoped records from all known KERI roots for the current platform, including `~/.keri`, `/usr/local/var/keri`, `/opt/homebrew/var/keri`, `/var/keri`, and the `db`, `ks`, `cf`, `rt`, `reg`, `mbx`, `not`, and `locksmith` stores beneath them (see [`scripts/reset-demo-state.sh`](scripts/reset-demo-state.sh)). If a particular machine uses additional roots, add them with `LOCKSMITH_EXTRA_RESET_ROOTS`.
 
 ### Reset + Verify
 

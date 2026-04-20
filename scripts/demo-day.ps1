@@ -7,12 +7,147 @@ Param(
 
 $ErrorActionPreference = "Stop"
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-# Resolve-Path often returns \\?\UNC\server\share\... — normalize so Join-Path .venv and WSL rm detection stay consistent.
-$uncExtendedPrefix = '\\?\UNC\'
-if ($repoRoot.StartsWith($uncExtendedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-    $repoRoot = '\\' + $repoRoot.Substring($uncExtendedPrefix.Length)
+function Normalize-DemoDayPath {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $Path
+    }
+
+    while ($Path -match '^[^:]+::') {
+        $Path = $Path.Substring($matches[0].Length)
+    }
+
+    try {
+        $Path = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+    }
+    catch {
+    }
+
+    # Normalize extended Windows path prefixes so downstream Join-Path, Test-Path, and WSL mapping stay consistent.
+    $uncExtendedPrefix = '\\?\UNC\'
+    if ($Path.StartsWith($uncExtendedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return '\\' + $Path.Substring($uncExtendedPrefix.Length)
+    }
+
+    $extendedPrefix = '\\?\'
+    if ($Path.StartsWith($extendedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $Path.Substring($extendedPrefix.Length)
+    }
+
+    return $Path
 }
+
+function Get-WslRepoContext {
+    param([Parameter(Mandatory)][string]$Path)
+
+    $normalizedPath = Normalize-DemoDayPath -Path $Path
+    $wslPrefix = '\\wsl.localhost' + [char]92
+    if (-not $normalizedPath.StartsWith($wslPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $null
+    }
+
+    $afterPrefix = $normalizedPath.Substring($wslPrefix.Length)
+    $parts = $afterPrefix.Split([char]92, [System.StringSplitOptions]::RemoveEmptyEntries)
+    if ($parts.Length -lt 2) {
+        return $null
+    }
+
+    $context = [ordered]@{
+        Distro = $parts[0]
+        UserHomeUnc = $null
+    }
+
+    if (($parts.Length -ge 3) -and ($parts[1] -eq 'home')) {
+        $username = $parts[2]
+        $context.UserHomeUnc = '\\wsl.localhost\' + $parts[0] + '\\home\\' + $username
+    }
+
+    return [PSCustomObject]$context
+}
+
+function Test-IsWindowsHost {
+    if (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) {
+        return [bool]$IsWindows
+    }
+
+    return ($env:OS -match 'Windows' -or [System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT)
+}
+
+function Get-ConfiguredResetRoots {
+    $rawRoots = $env:LOCKSMITH_EXTRA_RESET_ROOTS
+    if ([string]::IsNullOrWhiteSpace($rawRoots)) {
+        return @()
+    }
+
+    return @(
+        $rawRoots -split "`r`n|`n|;" |
+            ForEach-Object { $_.Trim() } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+}
+
+function Get-DemoStateRoots {
+    param([Parameter(Mandatory)][string]$RepoRoot)
+
+    $roots = New-Object System.Collections.Generic.List[string]
+
+    function Add-ExistingRoot {
+        param([string]$Candidate)
+
+        if ([string]::IsNullOrWhiteSpace($Candidate)) {
+            return
+        }
+
+        $normalizedCandidate = Normalize-DemoDayPath -Path $Candidate
+        if ((-not $roots.Contains($normalizedCandidate)) -and (Test-Path -LiteralPath $normalizedCandidate)) {
+            $roots.Add($normalizedCandidate)
+        }
+    }
+
+    if (Test-IsWindowsHost) {
+        foreach ($candidate in @(
+            (Join-Path $HOME ".keri"),
+            "C:\usr\local\var\keri",
+            "C:\ProgramData\keri"
+        )) {
+            Add-ExistingRoot -Candidate $candidate
+        }
+
+        $wslContext = Get-WslRepoContext -Path $RepoRoot
+        if ($null -ne $wslContext) {
+            foreach ($candidate in @(
+                $(if ($wslContext.UserHomeUnc) { Join-Path $wslContext.UserHomeUnc ".keri" }),
+                ('\\wsl.localhost\\' + $wslContext.Distro + '\\usr\\local\\var\\keri')
+            )) {
+                Add-ExistingRoot -Candidate $candidate
+            }
+        }
+
+        foreach ($candidate in Get-ConfiguredResetRoots) {
+            Add-ExistingRoot -Candidate $candidate
+        }
+
+        return $roots
+    }
+
+    foreach ($candidate in @(
+        (Join-Path $HOME ".keri"),
+        "/usr/local/var/keri",
+        "/opt/homebrew/var/keri",
+        "/var/keri"
+    )) {
+        Add-ExistingRoot -Candidate $candidate
+    }
+
+    foreach ($candidate in Get-ConfiguredResetRoots) {
+        Add-ExistingRoot -Candidate $candidate
+    }
+
+    return $roots
+}
+
+$repoRoot = Normalize-DemoDayPath -Path ((Resolve-Path (Join-Path $PSScriptRoot "..")).Path)
 $autoInstallUv = -not $NoAutoInstallUv
 $locksmithBase = $env:LOCKSMITH_BASE
 if ([string]::IsNullOrWhiteSpace($locksmithBase)) {
@@ -23,11 +158,7 @@ $env:LOCKSMITH_BASE = $locksmithBase
 function Remove-DemoDayDirectory {
     param([Parameter(Mandatory)][string]$Path)
 
-    # Resolve-Path often returns extended UNC (\\?\UNC\server\share\...). WSL detection expects \\server\share\...
-    $uncExtendedPrefix = '\\?\UNC\'
-    if ($Path.StartsWith($uncExtendedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-        $Path = '\\' + $Path.Substring($uncExtendedPrefix.Length)
-    }
+    $Path = Normalize-DemoDayPath -Path $Path
 
     if (-not (Test-Path -LiteralPath $Path)) {
         return
@@ -88,7 +219,10 @@ function Remove-DemoDayDirectory {
     try {
         Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue |
             Sort-Object { $_.FullName.Length } -Descending |
-            ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -Recurse -ErrorAction SilentlyContinue }
+            ForEach-Object {
+                $childPath = Normalize-DemoDayPath -Path $_.FullName
+                Remove-Item -LiteralPath $childPath -Force -Recurse -ErrorAction SilentlyContinue
+            }
         Remove-Item -LiteralPath $Path -Force -Recurse -ErrorAction Stop
         return
     }
@@ -475,12 +609,13 @@ Write-Host "[demo-day] using LOCKSMITH_BASE=$locksmithBase"
 
 if ($ResetDemoState) {
     Write-Host "[demo-day] clearing demo state for base '$locksmithBase'"
-    $roots = @(
-        (Join-Path $HOME ".keri"),
-        "C:\usr\local\var\keri",
-        "C:\ProgramData\keri",
-        "/usr/local/var/keri"
-    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+    $roots = Get-DemoStateRoots -RepoRoot $repoRoot
+    if ($roots.Count -eq 0) {
+        Write-Host "[demo-day] no existing demo state roots found"
+    }
+    else {
+        Write-Host "[demo-day] reset roots: $($roots -join ', ')"
+    }
 
     # KERI stores keyed by LOCKSMITH_BASE.
     $stores = @("db", "ks", "cf", "rt", "reg", "mbx", "not", "locksmith")

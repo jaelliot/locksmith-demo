@@ -12,7 +12,7 @@ LOCKSMITH_BASE ?= locksmith-demo
 
 export LOCKSMITH_BASE
 
-.PHONY: help locksmith-up locksmith-down locksmith-reset-state locksmith-verify
+.PHONY: help locksmith-up locksmith-down locksmith-reset-state locksmith-clean locksmith-clean-preview locksmith-verify
 
 help: ## Show available make targets
 	@grep -E '^[a-zA-Z_-]+:.*##' $(MAKEFILE_LIST) | \
@@ -31,6 +31,17 @@ locksmith-reset-state: ## Delete on-disk demo data for LOCKSMITH_BASE (quit the 
 	cd "$(REPO_ROOT)" && \
 		LOCKSMITH_BASE="$(LOCKSMITH_BASE)" \
 		./scripts/reset-demo-state.sh
+
+locksmith-clean: ## Remove demo setup artifacts (.venv, caches, temp downloads) and reset scoped state
+	cd "$(REPO_ROOT)" && \
+		LOCKSMITH_BASE="$(LOCKSMITH_BASE)" \
+		./scripts/cleanup-demo.sh
+
+locksmith-clean-preview: ## Preview cleanup without deleting files (DRY_RUN=1)
+	cd "$(REPO_ROOT)" && \
+		LOCKSMITH_BASE="$(LOCKSMITH_BASE)" \
+		DRY_RUN=1 \
+		./scripts/cleanup-demo.sh
 
 locksmith-verify: ## Setup, Qt resources, smoke tests only — no GUI (SETUP_ONLY=1)
 	cd "$(REPO_ROOT)" && \
