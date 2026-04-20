@@ -102,21 +102,48 @@ PYTHON_BIN=python3.13 ./scripts/demo-day.sh
 .\scripts\demo-day.ps1
 ```
 
+## Conference breakout: follow-along
+
+Use this for KERICONF-style demos or any session where attendees might run the demo alongside you. Full detail and timing are in **[Demo Walkthrough](#demo-walkthrough)** below; this section is the short path.
+
+**Presenter (macOS / Linux)**
+
+1. Clone this repo and `cd` into it (see [Quick Start](#quick-start)).
+2. Run `make locksmith-up` from the repo root (see [Makefile](#makefile-unixmacoslinux)) — installs dependencies, regenerates Qt resources, runs smoke tests (`7 passed`), then launches the GUI. Override with `PYTHON_BIN=python3.13` if needed.
+3. On stage, follow the **Short live-demo script** below or the full **Demo Walkthrough**.
+
+**Audience**
+
+- **Watch-only** is fine if Wi‑Fi or time is limited.
+- **Hands-on:** same clone and Python 3.13. Run `make locksmith-verify` to run setup and tests **without** opening the GUI (faster check). For the full app, use `make locksmith-up` or `./scripts/demo-day.sh` (Unix) / `.\scripts\demo-day.ps1` (Windows).
+
+**Short live-demo script (~5–7 minutes)**
+
+1. **Home** → click **Vaults** in the top toolbar. The vault list appears in a **drawer from the right**.
+2. Choose a vault (or **Initialize New Vault** first), then **Open** and enter the passcode.
+3. After unlock, use the **left** navigation: **Local Identifiers** → **+ Add Identifier** to create a local AID (or show one you created in rehearsal).
+4. Skim **Remote Identifiers**, **Group Identifiers**, **Issued** / **Received** credentials, and **Credential Schemas** — mostly empty states are normal unless you have seeded data.
+5. Optional: **Settings** for configuration placeholders and vault metadata.
+
+**Reset between runs (Unix)**
+
+Quit the app, then `make locksmith-down` and `make locksmith-reset-state` (or the **Blank-Slate Demo State** flow). See [Blank-Slate Demo State](#blank-slate-demo-state).
+
 ## Demo Walkthrough
 
 Once the GUI opens, follow this guided tour:
 
 ### 1. Vault Unlock (30 seconds)
 
-- The app opens to the **Vault drawer** (left sidebar).
-- You will see "**Vault Jay**" or similar (name from local machine).
-- Click the **lock icon** to unlock the vault and enter the password you created (or press Enter if using default demo data).
-- Expected: Unlock succeeds, vault drawer expands to show **Settings**, **Identifiers**, **Credentials**, **Schemas**, **Notifications**.
+- The app opens to the **home** screen. Click **Vaults** in the top toolbar to open the vault list (**drawer from the right**).
+- You will see existing vault names (for example a vault you created earlier) or use **Initialize New Vault**.
+- Choose a vault, then **Open**, and enter the passcode (or follow your rehearsal defaults).
+- Expected: Unlock succeeds; the **left** sidebar shows **Settings**, **Identifiers**, **Credentials**, **Schemas**, **Notifications** for the unlocked vault.
 
 ### 2. Local Identifiers (1 minute)
 
 - Click **Local Identifiers** in the left sidebar.
-- You will see an **empty state** with "NO LOCAL IDENTIFIERS" (first time setup).
+- First time you may see **NO LOCAL IDENTIFIERS**; after you create one, it appears in the list.
 - Optionally, click **+ Add Identifier** to create a new local AID. This proves the creation flow works.
 - Expected: Form opens to let you name and configure a new identifier.
 
@@ -177,17 +204,47 @@ Once the GUI opens, follow this guided tour:
 - The native launchers create `.venv`, install the editable package plus dev dependencies, regenerate Qt resources, run smoke tests, and then launch the GUI.
 - Cross-platform parity and open follow-up items are tracked in `GAPS.md`.
 
+## Makefile (Unix/macOS/Linux)
+
+The repo root includes a [`Makefile`](Makefile) for common demo workflows (same idea as the Fort-ios app Makefile). **Windows** presenters should keep using [`scripts/demo-day.ps1`](scripts/demo-day.ps1) instead of `make`.
+
+Optional variables: `LOCKSMITH_BASE` (default `locksmith-demo`), `PYTHON_BIN` (e.g. `python3.13`).
+
+| Target | What it does |
+|--------|----------------|
+| `make help` | List targets |
+| `make locksmith-up` | Install deps, refresh Qt resources, run smoke tests, launch the GUI (wraps `scripts/demo-day.sh`) |
+| `make locksmith-down` | Best-effort stop of a dev-launched LockSmith (`pkill` matches `.../src/locksmith/main.py`) |
+| `make locksmith-reset-state` | Delete on-disk demo data for the current `LOCKSMITH_BASE` via [`scripts/reset-demo-state.sh`](scripts/reset-demo-state.sh) |
+| `make locksmith-verify` | Same bootstrap as `locksmith-up` but `SETUP_ONLY=1` (no GUI) — use after a reset to confirm tests pass |
+
+Examples:
+
+```bash
+make locksmith-down
+make locksmith-reset-state
+make locksmith-verify
+make locksmith-up
+```
+
 ## Blank-Slate Demo State
 
 If your vault drawer shows old vaults from previous runs, run the reset + verify flow below.
 
-Close LockSmith fully before reset (including any background terminal run). Reset removes `LOCKSMITH_BASE`-scoped records from all known KERI roots for the current platform, including `~/.keri`, `/usr/local/var/keri`, `/opt/homebrew/var/keri`, `/var/keri`, and the `db`, `ks`, `cf`, `rt`, `reg`, `mbx`, `not`, and `locksmith` stores beneath them.
+**Default data scope:** If `LOCKSMITH_BASE` is not set in the environment, the app defaults to `locksmith-demo`, so the vault list only shows haberies under `~/.keri/db/locksmith-demo/` (not every top-level folder under `~/.keri/db/`). Older runs that wrote directly under `~/.keri/db/<name>/` without that segment can leave folders on disk; they will not appear in the drawer once scoped.
+
+Close LockSmith fully before reset (including any background terminal run). Use `make locksmith-down` or quit the app so files are not locked. Reset removes `LOCKSMITH_BASE`-scoped records from all known KERI roots for the current platform, including `~/.keri`, `/usr/local/var/keri`, `/opt/homebrew/var/keri`, `/var/keri`, and the `db`, `ks`, `cf`, `rt`, `reg`, `mbx`, `not`, and `locksmith` stores beneath them (see [`scripts/reset-demo-state.sh`](scripts/reset-demo-state.sh)).
 
 ### Reset + Verify
 
 1. **Run reset**
 
-- macOS/Linux:
+- macOS/Linux (recommended): from the repo root, `make locksmith-reset-state`, or run the script directly:
+```bash
+./scripts/reset-demo-state.sh
+```
+
+- macOS/Linux (reset then full launcher with `RESET_DEMO_STATE=1` still works — it invokes the same script):
 ```bash
 RESET_DEMO_STATE=1 ./scripts/demo-day.sh
 ```
@@ -201,6 +258,12 @@ RESET_DEMO_STATE=1 ./scripts/demo-day.sh
 
 - macOS/Linux:
 ```bash
+make locksmith-verify
+```
+
+Or, combining reset with a one-shot launcher:
+
+```bash
 RESET_DEMO_STATE=1 SETUP_ONLY=1 ./scripts/demo-day.sh
 ```
 
@@ -212,11 +275,21 @@ RESET_DEMO_STATE=1 SETUP_ONLY=1 ./scripts/demo-day.sh
 3. **Confirm reset summary in logs**
 
 ```text
-[demo-day] reset roots: <root1> <root2> ...
-[demo-day] reset summary: removed=<N> missing=<N> failed=0
+[reset-demo-state] reset roots: <root1> <root2> ...
+[reset-demo-state] reset summary: removed=<N> missing=<N> failed=0
 ```
 
-If `failed` is non-zero, close all running LockSmith processes and rerun the same reset command.
+If `failed` is non-zero, close all running LockSmith processes (`make locksmith-down` on Unix), ensure nothing else holds those directories open, and rerun reset.
+
+### Troubleshooting: "Last seed" / authentication error when initializing a vault
+
+If **Initialize New Vault** fails with an error mentioning **last seed**, **aeid**, or **Authentication error** from the keystore, the usual cause is **on-disk state** for that vault name (or a corrupted/partial store) that does not match the passcode you entered—often after earlier experiments or an interrupted run.
+
+1. **Use a blank slate** — run the [Reset + Verify](#reset--verify) flow above, then launch again and create a vault with a **new unique name** and a **passcode of at least 21 characters** (required by the KERI `Habery` setup path).
+2. **Avoid reusing a name** tied to old data until you have reset or removed that vault’s directories under your configured base (`LOCKSMITH_BASE`, default `locksmith-demo`).
+3. **Quit the app** before reset or manual deletion of vault data so files are not locked.
+
+The upstream error originates in the keystore `Manager` when an existing encrypted id (`aeid`) does not match the seed derived from the current passcode—not a UI-only bug.
 
 ## Optional Presenter Pre-Population
 

@@ -222,7 +222,16 @@ class CreateVaultDialog(LocksmithDialog):
 
         except kering.AuthError as ex:
             logger.error(f"Authentication error creating vault: {ex}")
-            self.show_error(f"Authentication error: {str(ex)}")
+            detail = str(ex)
+            if "Last seed missing" in detail or "not associated with last aeid" in detail:
+                self.show_error(
+                    "Could not initialize encrypted storage for this vault name with the passcode "
+                    "you entered. A vault with this name may already exist with different credentials, "
+                    "or local data may be incomplete—try another name, use the original passcode, or "
+                    "clear demo state (see README: Blank-Slate Demo State / RESET_DEMO_STATE) and retry."
+                )
+            else:
+                self.show_error(f"Authentication error: {detail}")
 
         except ValueError as ex:
             logger.error(f"Value error creating vault: {ex}")

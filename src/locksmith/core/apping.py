@@ -4,7 +4,6 @@ locksmith.core.apping module
 
 This module contains main Locksmith Application class
 """
-import os
 from pathlib import Path
 
 from keri import help
@@ -284,7 +283,8 @@ class LocksmithApplication:
         if not dbhome.exists():
             dbhome = Path(f'{Path.home()}/.keri/db')
 
-        base = os.environ.get('LOCKSMITH_BASE', self.config.base).strip()
+        # ``LocksmithConfig`` already resolves ``LOCKSMITH_BASE`` (unset vs empty vs set).
+        base = (self.config.base or "").strip()
         if base:
             dbhome = dbhome / base
 

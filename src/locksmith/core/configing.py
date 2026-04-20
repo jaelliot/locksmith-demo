@@ -71,7 +71,9 @@ class LocksmithConfig:
     salt: str = "0123456789abcdef"  # Default salt for key derivation
     algo: str = "salty"  # Algorithm for key derivation
     tier: str = "low"  # Security tier for key derivation
-    base: str = ""  # Base directory for KERI databases (will be set in __init__)
+    # Default matches demo-day.sh so a bare ``python main.py`` lists vaults under
+    # ~/.keri/db/locksmith-demo/ only, not every habery under ~/.keri/db/.
+    base: str = "locksmith-demo"
 
     def __new__(cls):
         if cls._instance is None:
@@ -130,7 +132,11 @@ class LocksmithConfig:
         api_oobi = os.environ.get('LOCKSMITH_API_OOBI', api_oobi)
         unprotected_url = os.environ.get('LOCKSMITH_UNPROTECTED_URL', unprotected_url)
         protected_url = os.environ.get('LOCKSMITH_PROTECTED_URL', protected_url)
-        base = os.environ.get('LOCKSMITH_BASE', self.base).strip()
+        # Unset env → demo base. Explicit ``LOCKSMITH_BASE=`` (empty) → global db layout.
+        if os.environ.get("LOCKSMITH_BASE") is None:
+            base = self.base
+        else:
+            base = os.environ["LOCKSMITH_BASE"].strip()
 
         self.root_aid = root_aid
         self.api_aid = api_aid

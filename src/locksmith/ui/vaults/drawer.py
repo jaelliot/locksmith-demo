@@ -162,7 +162,6 @@ class VaultDrawer(QWidget):
         new_vault_button_container.clicked.connect(self.show_create_vault_dialog)
         drawer_layout.addWidget(new_vault_button_container)
 
-
         # Create vault list widget (store as instance variable for refreshing)
         self.vault_list = QListWidget()
         self.vault_list.setIconSize(QSize(36, 36))
