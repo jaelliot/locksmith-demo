@@ -432,14 +432,27 @@ if ($ResetDemoState) {
 
 Initialize-WindowsLibsodium
 
-if (-not (Test-Path ".venv")) {
-    Write-Host "[demo-day] creating virtual environment"
-    Invoke-Python -m venv .venv
-}
+$venvDir = Join-Path $repoRoot ".venv"
+$venvPython = Join-Path $venvDir "Scripts\python.exe"
+$venvPytest = Join-Path $venvDir "Scripts\pytest.exe"
+$venvRcc = Join-Path $venvDir "Scripts\pyside6-rcc.exe"
 
-$venvPython = ".venv\Scripts\python.exe"
-$venvPytest = ".venv\Scripts\pytest.exe"
-$venvRcc = ".venv\Scripts\pyside6-rcc.exe"
+if (-not (Test-Path $venvDir)) {
+    Write-Host "[demo-day] creating virtual environment"
+    Invoke-Python -m venv $venvDir
+}
+elseif (-not (Test-Path $venvPython)) {
+    # Same repo on a UNC path or a WSL/Linux-created venv has bin/python but not Scripts\python.exe.
+    $linuxVenvPython = Join-Path $venvDir "bin\python"
+    if (Test-Path $linuxVenvPython) {
+        Write-Host "[demo-day] existing .venv is not usable on Windows (e.g. created under Linux/WSL); recreating for Windows..."
+    }
+    else {
+        Write-Host "[demo-day] existing .venv is missing Scripts\python.exe; recreating virtual environment..."
+    }
+    Remove-Item -Recurse -Force $venvDir
+    Invoke-Python -m venv $venvDir
+}
 
 if (-not (Test-Path $venvPython)) {
     throw "[demo-day] ERROR: virtualenv python not found at $venvPython"
@@ -448,8 +461,8 @@ if (-not (Test-Path $venvPython)) {
 $venvVer = (& $venvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
 if ($venvVer -ne "3.13") {
     Write-Host "[demo-day] existing .venv is Python $venvVer; recreating with Python 3.13"
-    Remove-Item -Recurse -Force .venv
-    Invoke-Python -m venv .venv
+    Remove-Item -Recurse -Force $venvDir
+    Invoke-Python -m venv $venvDir
 }
 
 $basePythonDir = (& $venvPython -c "import sys; print(sys.base_prefix)").Trim()
