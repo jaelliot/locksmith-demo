@@ -1,4 +1,4 @@
-# LockSmith demo — Makefile (Unix/macOS/Linux). Windows: use scripts\demo-day.ps1.
+# LockSmith demo — Makefile (Unix/macOS/Linux). Native Windows: use scripts\demo-day.cmd (or demo-day.ps1 with suitable execution policy).
 .DEFAULT_GOAL := help
 
 SHELL := /bin/bash

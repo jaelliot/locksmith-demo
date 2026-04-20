@@ -69,11 +69,13 @@ cd locksmith-demo
 PYTHON_BIN=python3.13 SETUP_ONLY=1 ./scripts/demo-day.sh
 ```
 
-- Windows PowerShell
+- Windows (Command Prompt or PowerShell — recommended)
 
-```powershell
-.\scripts\demo-day.ps1 -SetupOnly
+```bat
+scripts\demo-day.cmd -SetupOnly
 ```
+
+If you prefer to run [`scripts/demo-day.ps1`](scripts/demo-day.ps1) directly, your session must allow local scripts (for example `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` once per session), or use `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-day.ps1 -SetupOnly`.
 
 - Docker headless
 
@@ -96,11 +98,13 @@ Expected result:
 PYTHON_BIN=python3.13 ./scripts/demo-day.sh
 ```
 
-- Windows PowerShell
+- Windows
 
-```powershell
-.\scripts\demo-day.ps1
+```bat
+scripts\demo-day.cmd
 ```
+
+Same as preflight: you can use [`scripts/demo-day.ps1`](scripts/demo-day.ps1) directly if your execution policy allows it, or invoke it with `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-day.ps1`.
 
 ## Conference breakout: follow-along
 
@@ -115,7 +119,7 @@ Use this for KERICONF-style demos or any session where attendees might run the d
 **Audience**
 
 - **Watch-only** is fine if Wi‑Fi or time is limited.
-- **Hands-on:** same clone and Python 3.13. Run `make locksmith-verify` to run setup and tests **without** opening the GUI (faster check). For the full app, use `make locksmith-up` or `./scripts/demo-day.sh` (Unix) / `.\scripts\demo-day.ps1` (Windows).
+- **Hands-on:** same clone and Python 3.13. Run `make locksmith-verify` to run setup and tests **without** opening the GUI (faster check). For the full app, use `make locksmith-up` or `./scripts/demo-day.sh` (Unix) / `scripts\demo-day.cmd` (Windows).
 
 **Short live-demo script (~5–7 minutes)**
 
@@ -206,7 +210,7 @@ Once the GUI opens, follow this guided tour:
 
 ## Makefile (Unix/macOS/Linux)
 
-The repo root includes a [`Makefile`](Makefile) for common demo workflows (same idea as the Fort-ios app Makefile). **Windows** presenters should keep using [`scripts/demo-day.ps1`](scripts/demo-day.ps1) instead of `make`.
+The repo root includes a [`Makefile`](Makefile) for common demo workflows (same idea as the Fort-ios app Makefile). **Native Windows** presenters should use [`scripts/demo-day.cmd`](scripts/demo-day.cmd) (or [`scripts/demo-day.ps1`](scripts/demo-day.ps1) with a suitable execution policy) instead of `make`.
 
 Optional variables: `LOCKSMITH_BASE` (default `locksmith-demo`), `PYTHON_BIN` (e.g. `python3.13`).
 
@@ -249,9 +253,9 @@ Close LockSmith fully before reset (including any background terminal run). Use 
 RESET_DEMO_STATE=1 ./scripts/demo-day.sh
 ```
 
-- Windows PowerShell:
-```powershell
-.\scripts\demo-day.ps1 -ResetDemoState
+- Windows:
+```bat
+scripts\demo-day.cmd -ResetDemoState
 ```
 
 2. **Run setup-only verify**
@@ -267,9 +271,9 @@ Or, combining reset with a one-shot launcher:
 RESET_DEMO_STATE=1 SETUP_ONLY=1 ./scripts/demo-day.sh
 ```
 
-- Windows PowerShell:
-```powershell
-.\scripts\demo-day.ps1 -ResetDemoState -SetupOnly
+- Windows:
+```bat
+scripts\demo-day.cmd -ResetDemoState -SetupOnly
 ```
 
 3. **Confirm reset summary in logs**
@@ -310,7 +314,7 @@ export LOCKSMITH_PROTECTED_URL="<api-url>"
 PYTHON_BIN=python3.13 ./scripts/demo-day.sh
 ```
 
-- Windows PowerShell:
+- Windows (set env vars in PowerShell, then run the launcher from **Command Prompt** or **PowerShell**):
 
 ```powershell
 $env:LOCKSMITH_ROOT_AID = "<root-aid>"
@@ -319,7 +323,10 @@ $env:LOCKSMITH_ROOT_OOBI = "<root-oobi-url>"
 $env:LOCKSMITH_API_OOBI = "<api-oobi-url>"
 $env:LOCKSMITH_UNPROTECTED_URL = "<registration-url>"
 $env:LOCKSMITH_PROTECTED_URL = "<api-url>"
-.\scripts\demo-day.ps1
+```
+
+```bat
+scripts\demo-day.cmd
 ```
 
 ### Configuration Variable Reference
@@ -352,8 +359,8 @@ If attendees want to clone this repo and follow along on their own machines (Win
    # macOS/Linux
    PYTHON_BIN=python3.13 SETUP_ONLY=1 ./scripts/demo-day.sh
    
-   # Windows PowerShell
-   .\scripts\demo-day.ps1 -SetupOnly
+   # Windows
+   scripts\demo-day.cmd -SetupOnly
    ```
 
 3. **Launch the app:**
@@ -361,8 +368,8 @@ If attendees want to clone this repo and follow along on their own machines (Win
    # macOS/Linux
    PYTHON_BIN=python3.13 ./scripts/demo-day.sh
    
-   # Windows PowerShell
-   .\scripts\demo-day.ps1
+   # Windows
+   scripts\demo-day.cmd
    ```
 
 4. **Follow the Demo Walkthrough** (see section above).
@@ -382,7 +389,7 @@ export LOCKSMITH_PROTECTED_URL="http://localhost:8080/api"
 PYTHON_BIN=python3.13 ./scripts/demo-day.sh
 ```
 
-**PowerShell (Windows):**
+**Windows (env vars in PowerShell, then launcher):**
 ```powershell
 $env:LOCKSMITH_ROOT_AID = "EB0a3Zm8yKHjXHHPzFcYQ0N_7Dxq2ZoFXnwJgfKoXo0Q"
 $env:LOCKSMITH_ROOT_OOBI = "http://localhost:8080/oobi"
@@ -390,7 +397,10 @@ $env:LOCKSMITH_API_AID = "EB0a3Zm8yKHjXHHPzFcYQ0N_7Dxq2ZoFXnwJgfKoXo0Q"
 $env:LOCKSMITH_API_OOBI = "http://localhost:8080/api/oobi"
 $env:LOCKSMITH_UNPROTECTED_URL = "http://localhost:8080/register"
 $env:LOCKSMITH_PROTECTED_URL = "http://localhost:8080/api"
-.\scripts\demo-day.ps1
+```
+
+```bat
+scripts\demo-day.cmd
 ```
 
 > **Note:** These are example values. Replace with real values from your witness/registry infrastructure if you have one running. For a "clean slate" demo, leaving the fields "Not configured" is perfectly fine—it shows a realistic default state.
@@ -443,12 +453,9 @@ After this checklist passes, you are ready to demo live.
 
 #### Windows
 
-- **PowerShell execution policy blocks script**: Run once to unblock:
-  ```powershell
-  Set-ExecutionPolicy -Scope Process Bypass
-  ```
+- **PowerShell execution policy blocks `.\scripts\demo-day.ps1`**: From the repo root, prefer **`scripts\demo-day.cmd`** (it launches PowerShell with a process-scoped `-ExecutionPolicy Bypass` for that run). Alternatives: run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` once in the session, or `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-day.ps1 ...`. If scripts are blocked by **Group Policy**, you may need an IT exception or use WSL/macOS/Linux for this demo.
 - **`python3.13` is not on PATH** (common on Windows): The preflight looks for `python3.13`, then `python` if it reports 3.13, then the `py -3.13` launcher, then installs 3.13 via `uv` if available. You can pass a specific executable with `-PythonBin` (for example `-PythonBin python` when `python --version` is 3.13).
-- **"python3.13 is not recognized"** when typed in the shell: That is normal; Windows typically exposes `python.exe` or `py.exe`. Install Python 3.13 (x64) from [python.org](https://www.python.org/downloads/) and ensure the installer checks "Add python.exe to PATH", then run `.\scripts\demo-day.ps1` without relying on a `python3.13` command name.
+- **"python3.13 is not recognized"** when typed in the shell: That is normal; Windows typically exposes `python.exe` or `py.exe`. Install Python 3.13 (x64) from [python.org](https://www.python.org/downloads/) and ensure the installer checks "Add python.exe to PATH", then run `scripts\demo-day.cmd` without relying on a `python3.13` command name.
 - **libsodium.dll not found**: The launcher now auto-downloads libsodium. If issues persist, install the Microsoft Visual C++ Redistributable (x64).
 - **Vault opens but Turret/plugin bridge is unavailable**: On Windows runtimes without Unix-domain sockets (`socket.AF_UNIX`), LockSmith now disables Turret for the current session instead of failing vault open. Core wallet flows continue to work; browser-plugin bridge features are unavailable in that session.
 
@@ -456,9 +463,9 @@ After this checklist passes, you are ready to demo live.
 
 If you see `uv : The term 'uv' is not recognized...` on Windows, that is okay when Python 3.13 is already installed and available as `python` or `py`. You can run:
 
-```powershell
-.\scripts\demo-day.ps1 -SetupOnly
-.\scripts\demo-day.ps1
+```bat
+scripts\demo-day.cmd -SetupOnly
+scripts\demo-day.cmd
 ```
 
 Install `uv` only if you specifically want automatic Python provisioning.
@@ -469,10 +476,13 @@ Use Python 3.13 explicitly:
 PYTHON_BIN=python3.13 ./scripts/demo-day.sh
 ```
 
-```powershell
-.\scripts\demo-day.ps1
-# optional when `python --version` is 3.13:
-# .\scripts\demo-day.ps1 -PythonBin python
+```bat
+scripts\demo-day.cmd
+```
+
+```bat
+REM optional when `python --version` is 3.13:
+REM scripts\demo-day.cmd -PythonBin python
 ```
 
 ### `LoadLibrary() argument 1 must be str, not None`
@@ -485,16 +495,8 @@ The launcher performs an explicit `ctypes.WinDLL(...)` probe against bundled `li
 
 If you still see this error, re-run setup-only mode in a fresh shell:
 
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.\scripts\demo-day.ps1 -SetupOnly
-```
-
-### PowerShell execution policy blocks the script
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\demo-day.ps1 -SetupOnly
+```bat
+scripts\demo-day.cmd -SetupOnly
 ```
 
 ### Windows `libsodium` load failure
